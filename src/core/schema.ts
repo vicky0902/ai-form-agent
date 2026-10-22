@@ -1,4 +1,4 @@
-import Ajv from 'ajv'
+import Ajv, { type ErrorObject } from 'ajv'
 
 /** 结构层 JSON Schema（语义层检查在 validate.ts） */
 export const FORM_SCHEMA = {
@@ -88,7 +88,7 @@ const ajv = new Ajv({ allErrors: true })
 export const validateStructure = ajv.compile(FORM_SCHEMA)
 
 /** 将 Ajv 错误转成可读中文（只取前几条，避免刷屏） */
-export function formatAjvErrors(errors: readonly Ajv.ErrorObject[] | null | undefined): string[] {
+export function formatAjvErrors(errors: readonly ErrorObject[] | null | undefined): string[] {
   if (!errors?.length) return []
   return errors.slice(0, 6).map((e) => {
     const where = e.instancePath.replace(/^\//, '顶层').replace(/\//g, '.') || '顶层'
