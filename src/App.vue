@@ -2,30 +2,20 @@
 import { computed, ref } from 'vue'
 import ChatPanel from './components/ChatPanel.vue'
 import FormRenderer from './components/FormRenderer.vue'
-import leaveRaw from '../examples/leave.json?raw'
-import repairRaw from '../examples/repair.json?raw'
-import supplierRaw from '../examples/supplier.json?raw'
-import type { FormSchema } from './types'
+import { useChat } from './composables/useChat'
 
-const EXAMPLES: Record<string, string> = {
-  leave: leaveRaw,
-  repair: repairRaw,
-  supplier: supplierRaw,
-}
-
-const currentSchema = ref<FormSchema | null>(null)
 const view = ref<'form' | 'json'>('form')
+
+const chat = useChat({
+  onSchema: () => {
+    view.value = 'form'
+  },
+})
+const { items, generating, currentSchema, send, stop } = chat
 
 const schemaJson = computed(() =>
   currentSchema.value ? JSON.stringify(currentSchema.value, null, 2) : '',
 )
-
-function loadExample(key: string) {
-  const raw = EXAMPLES[key]
-  if (!raw) return
-  currentSchema.value = JSON.parse(raw) as FormSchema
-  view.value = 'form'
-}
 </script>
 
 <template>
@@ -33,16 +23,17 @@ function loadExample(key: string) {
     <header class="topbar">
       <span class="logo">✦</span>
       <span class="name">AI 表单生成器</span>
-      <span class="badge">开发中</span>
+      <span class="badge">在线 Demo</span>
     </header>
     <div class="body">
-      <ChatPanel @example="loadExample" />
+      <ChatPanel :items="items" :generating="generating" @send="send" @stop="stop" />
       <main class="canvas">
         <div class="tabs">
           <button
             type="button"
             class="tab"
             :class="{ active: view === 'form' }"
+            :disabled="generating"
             @click="view = 'form'"
           >
             表单预览
@@ -51,15 +42,23 @@ function loadExample(key: string) {
             type="button"
             class="tab"
             :class="{ active: view === 'json' }"
+            :disabled="generating"
             @click="view = 'json'"
           >
             Schema JSON
           </button>
         </div>
         <div class="stage">
-          <div v-if="!currentSchema" class="empty">
+          <div v-if="generating" class="skeleton">
+            <div class="sk-title" />
+            <div class="sk-row" style="width: 80%" />
+            <div class="sk-row" />
+            <div class="sk-row" style="width: 60%" />
+            <div class="sk-note">AI 正在生成表单配置…</div>
+          </div>
+          <div v-else-if="!currentSchema" class="empty">
             <div class="empty-icon">▦</div>
-            <p>点击左侧示例，生成的表单会出现在这里</p>
+            <p>生成的表单会出现在这里</p>
           </div>
           <FormRenderer v-else-if="view === 'form'" :schema="currentSchema" />
           <pre v-else class="json">{{ schemaJson }}</pre>
@@ -99,8 +98,8 @@ function loadExample(key: string) {
 }
 .badge {
   font-size: 11px;
-  color: #e6a23c;
-  background: #fdf6ec;
+  color: #67c23a;
+  background: #f0f9eb;
   border-radius: 999px;
   padding: 2px 9px;
 }
@@ -113,7 +112,11 @@ function loadExample(key: string) {
 @media (max-width: 880px) {
   .body {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(220px, 40%) 1fr;
+    grid-template-rows: minmax(220px, 42%) 1fr;
+  }
+  .chat {
+    border-right: 0 !important;
+    border-bottom: 1px solid #e4e7ed;
   }
 }
 .canvas {
@@ -164,6 +167,37 @@ function loadExample(key: string) {
   margin: 0;
   font-size: 13px;
 }
+.skeleton {
+  max-width: 560px;
+  margin: 0 auto;
+}
+.sk-title,
+.sk-row {
+  height: 15px;
+  border-radius: 6px;
+  margin-bottom: 22px;
+  background: linear-gradient(90deg, #eceef1 25%, #f6f7f9 50%, #eceef1 75%);
+  background-size: 400% 100%;
+  animation: shimmer 1.2s infinite;
+}
+.sk-title {
+  width: 38%;
+  height: 19px;
+  margin-bottom: 30px;
+}
+.sk-note {
+  font-size: 12.5px;
+  color: #909399;
+  text-align: center;
+}
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
 .json {
   margin: 0;
   padding: 16px 18px;
@@ -174,14 +208,5 @@ function loadExample(key: string) {
   font-size: 12px;
   line-height: 1.7;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-</style>
-
-<style>
-@media (max-width: 880px) {
-  .chat {
-    border-right: 0 !important;
-    border-bottom: 1px solid #e4e7ed;
-  }
 }
 </style>

@@ -1,33 +1,103 @@
 <script setup lang="ts">
-const emit = defineEmits<{ example: [key: string] }>()
+import { nextTick, ref, watch } from 'vue'
+import type { ChatItem } from '../composables/useChat'
 
-const examples = [
-  { key: 'leave', label: '请假申请表单' },
-  { key: 'repair', label: '设备报修工单' },
-  { key: 'supplier', label: '供应商入驻' },
+const props = defineProps<{ items: ChatItem[]; generating: boolean }>()
+const emit = defineEmits<{ send: [text: string]; stop: [] }>()
+
+const input = ref('')
+const listEl = ref<HTMLElement | null>(null)
+
+const PRESETS: { key: string; label: string; text: string }[] = [
+  {
+    key: 'leave',
+    label: '请假申请表单',
+    text: '做一个员工请假申请表单：姓名、所属部门（级联：研发部/市场部含子组）、请假类型（下拉：年假/事假/病假/调休）、直属领导（下拉）、起止日期（区间）、请假天数（数字，单位天）、请假事由（多行）、证明附件（上传最多3个）。字段多于 8 个要分组。',
+  },
+  {
+    key: 'repair',
+    label: '设备报修工单',
+    text: '生成一个设备报修工单表单：设备编号、故障类型（下拉：硬件/软件/网络/其他）、故障等级（单选：一般/紧急/危急）、报修人、现场照片（上传最多3张）、故障描述（多行）。',
+  },
+  {
+    key: 'supplier',
+    label: '供应商入驻',
+    text: '生成供应商入驻申请表单：公司名称、统一社会信用代码、所属行业（级联）、公司规模（下拉）、经营范围（多选）、资质证书（上传）、联系人、联系电话、邮箱、发票类型（单选）。需要分组展示。',
+  },
 ]
+
+function doSend(text?: string) {
+  const value = (text ?? input.value).trim()
+  if (props.generating || !value) return
+  emit('send', value)
+  input.value = ''
+}
+
+watch(
+  () => props.items.map((i) => i.raw).join(''),
+  async () => {
+    await nextTick()
+    listEl.value?.scrollTo({ top: listEl.value.scrollHeight })
+  },
+)
 </script>
 
 <template>
   <aside class="chat">
-    <div class="msgs">
-      <div class="row ai">
+    <div ref="listEl" class="msgs">
+      <div class="row">
         <span class="ava">AI</span>
         <div class="bubble">
-          你好！我是表单生成助手。用一句话描述业务需求，我会生成表单配置并实时渲染成可交互的表单。
-          <span class="note">（当前为静态链路阶段：点示例直接加载本地配置，流式生成在下一阶段接通）</span>
+          你好！我是表单生成助手。用一句话描述业务需求，我会流式生成表单配置并实时渲染成可交互的表单。先选一个示例，或直接输入你的需求：
         </div>
       </div>
-      <div class="chips">
-        <button v-for="e in examples" :key="e.key" type="button" class="chip" @click="emit('example', e.key)">
-          {{ e.label }}
-        </button>
-      </div>
+
+      <template v-for="item in items" :key="item.id">
+        <div v-if="item.role === 'user'" class="row user">
+          <span class="ava human">我</span>
+          <div class="bubble">{{ item.text }}</div>
+        </div>
+        <div v-else class="row">
+          <span class="ava">AI</span>
+          <div class="bubble">
+            <pre v-if="item.raw" class="code">{{ item.raw }}</pre>
+            <div class="status" :class="item.status">
+              <span v-if="item.status === 'streaming'" class="dot" />{{ item.note }}
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
+
+    <div class="chips">
+      <button
+        v-for="p in PRESETS"
+        :key="p.key"
+        type="button"
+        class="chip"
+        :disabled="generating"
+        @click="doSend(p.text)"
+      >
+        {{ p.label }}
+      </button>
+    </div>
+
     <div class="inputbar">
-      <div class="fakeinput">描述你要的表单，例如：做一个请假申请…</div>
-      <button type="button" class="send" disabled>发送</button>
-      <div class="tip">流式对话将在 Phase D 接通</div>
+      <textarea
+        v-model="input"
+        class="input"
+        rows="2"
+        maxlength="500"
+        placeholder="描述你要的表单，Enter 发送，Shift+Enter 换行"
+        @keydown.enter.exact.prevent="doSend()"
+      />
+      <div class="actions">
+        <span class="tip">输入将发送至第三方大模型服务处理，请勿输入敏感信息</span>
+        <button v-if="!generating" type="button" class="send" :disabled="!input.trim()" @click="doSend()">
+          发送
+        </button>
+        <button v-else type="button" class="send stop" @click="emit('stop')">停止</button>
+      </div>
     </div>
   </aside>
 </template>
@@ -47,6 +117,7 @@ const examples = [
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  min-height: 0;
 }
 .row {
   display: flex;
@@ -65,6 +136,9 @@ const examples = [
   align-items: center;
   justify-content: center;
 }
+.ava.human {
+  background: #a8abb2;
+}
 .bubble {
   max-width: 84%;
   background: #fff;
@@ -72,18 +146,54 @@ const examples = [
   border-radius: 10px;
   padding: 9px 12px;
   line-height: 1.6;
+  overflow-wrap: break-word;
 }
-.note {
-  display: block;
-  margin-top: 4px;
-  font-size: 11.5px;
+.code {
+  margin: 2px 0 6px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #20232a;
+  color: #c9d4e3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  max-height: 150px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.status {
+  font-size: 12.5px;
   color: #909399;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.status.ok {
+  color: #67c23a;
+}
+.status.fail,
+.status.aborted {
+  color: #f56c6c;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #409eff;
+  animation: blink 1s infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.2;
+  }
 }
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding-left: 34px;
+  padding: 10px 14px 0;
+  border-top: 1px solid #e4e7ed;
 }
 .chip {
   border: 1px solid #dcdfe6;
@@ -94,31 +204,56 @@ const examples = [
   font-size: 13px;
   cursor: pointer;
 }
-.chip:hover {
+.chip:hover:not(:disabled) {
   border-color: #409eff;
   color: #409eff;
 }
+.chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .inputbar {
-  border-top: 1px solid #e4e7ed;
-  padding: 11px 14px 13px;
+  padding: 10px 14px 12px;
 }
-.inputbar > * {
-  display: block;
-}
-.fakeinput {
-  background: #fff;
+.input {
+  width: 100%;
+  resize: none;
   border: 1px solid #dcdfe6;
   border-radius: 9px;
   padding: 9px 12px;
   font-size: 13px;
-  color: #a8abb2;
+  font-family: inherit;
+  line-height: 1.5;
+  outline: none;
 }
-.send {
-  display: none;
+.input:focus {
+  border-color: #409eff;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
 }
 .tip {
-  margin-top: 7px;
-  font-size: 11.5px;
-  color: #909399;
+  font-size: 11px;
+  color: #c0c4cc;
+}
+.send {
+  border: 0;
+  border-radius: 9px;
+  padding: 8px 18px;
+  background: #409eff;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.send.stop {
+  background: #f56c6c;
 }
 </style>
