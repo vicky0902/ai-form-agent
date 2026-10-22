@@ -1,0 +1,110 @@
+{
+  "formTitle": "员工请假申请",
+  "description": "提交后进入部门审批流程",
+  "labelWidth": 100,
+  "columns": 2,
+  "groups": [
+    { "title": "基础信息", "fields": ["name", "dept", "leaveType", "approver"] },
+    { "title": "请假详情", "fields": ["range", "days", "reason", "files"] }
+  ],
+  "fields": [
+    {
+      "type": "input",
+      "field": "name",
+      "title": "姓名",
+      "required": true,
+      "placeholder": "请输入姓名",
+      "maxLength": 20
+    },
+    {
+      "type": "cascader",
+      "field": "dept",
+      "title": "所属部门",
+      "required": true,
+      "span": 1,
+      "placeholder": "请选择部门",
+      "options": [
+        {
+          "label": "研发部",
+          "value": "rd",
+          "children": [
+            { "label": "前端组", "value": "frontend" },
+            { "label": "后端组", "value": "backend" }
+          ]
+        },
+        {
+          "label": "市场部",
+          "value": "market",
+          "children": [
+            { "label": "品牌组", "value": "brand" },
+            { "label": "渠道组", "value": "channel" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "field": "leaveType",
+      "title": "请假类型",
+      "required": true,
+      "span": 1,
+      "placeholder": "请选择",
+      "options": [
+        { "label": "年假", "value": "annual" },
+        { "label": "事假", "value": "personal" },
+        { "label": "病假", "value": "sick" },
+        { "label": "调休", "value": "compLeave" }
+      ]
+    },
+    {
+      "type": "select",
+      "field": "approver",
+      "title": "直属领导",
+      "required": true,
+      "span": 1,
+      "placeholder": "请选择审批人",
+      "options": [
+        { "label": "张伟", "value": "zhangwei" },
+        { "label": "李娜", "value": "lina" },
+        { "label": "王强", "value": "wangqiang" }
+      ]
+    },
+    {
+      "type": "datePicker",
+      "field": "range",
+      "title": "起止日期",
+      "required": true,
+      "span": 2,
+      "dateType": "daterange",
+      "placeholder": "选择请假起止日期"
+    },
+    {
+      "type": "inputNumber",
+      "field": "days",
+      "title": "请假天数",
+      "required": true,
+      "span": 1,
+      "min": 0.5,
+      "max": 365,
+      "precision": 1,
+      "unit": "天"
+    },
+    {
+      "type": "textarea",
+      "field": "reason",
+      "title": "请假事由",
+      "span": 2,
+      "rows": 4,
+      "placeholder": "简述请假原因…",
+      "maxLength": 200
+    },
+    {
+      "type": "upload",
+      "field": "files",
+      "title": "证明附件",
+      "span": 2,
+      "limit": 3,
+      "accept": ".jpg,.png,.pdf"
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "formTitle": "供应商入驻申请",
+  "description": "提交后由采购部初审，3 个工作日内反馈",
+  "labelWidth": 120,
+  "columns": 2,
+  "groups": [
+    { "title": "公司信息", "fields": ["companyName", "creditCode", "industry", "scale"] },
+    { "title": "经营与资质", "fields": ["businessScope", "certificates"] },
+    { "title": "联系方式", "fields": ["contactName", "contactPhone", "email", "invoiceType"] }
+  ],
+  "fields": [
+    {
+      "type": "input",
+      "field": "companyName",
+      "title": "公司名称",
+      "required": true,
+      "placeholder": "请输入营业执照全称",
+      "maxLength": 60,
+      "span": 2
+    },
+    {
+      "type": "input",
+      "field": "creditCode",
+      "title": "统一社会信用代码",
+      "required": true,
+      "placeholder": "18 位信用代码",
+      "maxLength": 18
+    },
+    {
+      "type": "cascader",
+      "field": "industry",
+      "title": "所属行业",
+      "required": true,
+      "span": 1,
+      "placeholder": "请选择行业",
+      "options": [
+        {
+          "label": "信息技术",
+          "value": "it",
+          "children": [
+            { "label": "软件开发", "value": "software" },
+            { "label": "硬件设备", "value": "hardware" }
+          ]
+        },
+        {
+          "label": "制造业",
+          "value": "manufacturing",
+          "children": [
+            { "label": "电子元件", "value": "electronic" },
+            { "label": "机械设备", "value": "machinery" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "field": "scale",
+      "title": "公司规模",
+      "required": true,
+      "span": 1,
+      "placeholder": "请选择",
+      "options": [
+        { "label": "50 人以下", "value": "lt50" },
+        { "label": "50~200 人", "value": "50to200" },
+        { "label": "200~1000 人", "value": "200to1000" },
+        { "label": "1000 人以上", "value": "gt1000" }
+      ]
+    },
+    {
+      "type": "checkbox",
+      "field": "businessScope",
+      "title": "经营范围",
+      "required": true,
+      "span": 2,
+      "options": [
+        { "label": "货物供应", "value": "goods" },
+        { "label": "技术服务", "value": "service" },
+        { "label": "工程承包", "value": "engineering" },
+        { "label": "物流运输", "value": "logistics" }
+      ]
+    },
+    {
+      "type": "upload",
+      "field": "certificates",
+      "title": "资质证书",
+      "required": true,
+      "span": 2,
+      "limit": 5,
+      "accept": ".jpg,.png,.pdf"
+    },
+    {
+      "type": "input",
+      "field": "contactName",
+      "title": "联系人",
+      "required": true,
+      "placeholder": "请输入姓名",
+      "maxLength": 20
+    },
+    {
+      "type": "input",
+      "field": "contactPhone",
+      "title": "联系电话",
+      "required": true,
+      "placeholder": "手机号",
+      "maxLength": 11
+    },
+    {
+      "type": "input",
+      "field": "email",
+      "title": "电子邮箱",
+      "placeholder": "用于接收审核通知",
+      "maxLength": 50
+    },
+    {
+      "type": "radio",
+      "field": "invoiceType",
+      "title": "发票类型",
+      "required": true,
+      "span": 2,
+      "defaultValue": "special",
+      "options": [
+        { "label": "增值税专用发票", "value": "special" },
+        { "label": "增值税普通发票", "value": "normal" }
+      ]
+    }
+  ]
+}

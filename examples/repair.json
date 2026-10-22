@@ -1,0 +1,72 @@
+{
+  "formTitle": "设备报修工单",
+  "description": "请如实填写故障信息，运维将在 2 小时内响应",
+  "labelWidth": 100,
+  "columns": 2,
+  "groups": [
+    { "title": "设备信息", "fields": ["deviceNo", "faultType", "level", "reporter"] },
+    { "title": "故障详情", "fields": ["photos", "desc"] }
+  ],
+  "fields": [
+    {
+      "type": "input",
+      "field": "deviceNo",
+      "title": "设备编号",
+      "required": true,
+      "placeholder": "如 DEV-2026-0031",
+      "maxLength": 30
+    },
+    {
+      "type": "select",
+      "field": "faultType",
+      "title": "故障类型",
+      "required": true,
+      "span": 1,
+      "placeholder": "请选择",
+      "options": [
+        { "label": "硬件", "value": "hardware" },
+        { "label": "软件", "value": "software" },
+        { "label": "网络", "value": "network" },
+        { "label": "其他", "value": "other" }
+      ]
+    },
+    {
+      "type": "radio",
+      "field": "level",
+      "title": "故障等级",
+      "required": true,
+      "span": 1,
+      "defaultValue": "normal",
+      "options": [
+        { "label": "一般", "value": "normal" },
+        { "label": "紧急", "value": "urgent" },
+        { "label": "危急", "value": "critical" }
+      ]
+    },
+    {
+      "type": "input",
+      "field": "reporter",
+      "title": "报修人",
+      "required": true,
+      "placeholder": "请输入姓名",
+      "maxLength": 20
+    },
+    {
+      "type": "upload",
+      "field": "photos",
+      "title": "现场照片",
+      "span": 2,
+      "limit": 3,
+      "accept": ".jpg,.png"
+    },
+    {
+      "type": "textarea",
+      "field": "desc",
+      "title": "故障描述",
+      "span": 2,
+      "rows": 4,
+      "placeholder": "描述故障现象、发生时间…",
+      "maxLength": 300
+    }
+  ]
+}
