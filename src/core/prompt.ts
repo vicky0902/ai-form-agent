@@ -3,6 +3,8 @@ import type { FormSchema } from '../types'
 const SPEC_DIGEST = `表单配置规范 v1（必须严格遵守）：
 
 顶层结构：{ formTitle(1~30字,必填), description(≤100字), labelWidth(80~200), columns(1|2), groups([{title(2~8字), fields:[字段名…]}]), fields(1~20个,必填) }
+⚠️ 关键：fields 必须是【字段对象数组】；groups.fields 必须是【字符串数组】，元素只能是字段名（不是对象）。
+⚠️ 每个 field 对象只允许出现在顶层 fields 中，groups 里只引用它的 field 名。
 
 字段对象通用属性：type(必填), field(必填,小驼峰英文禁止中文), title(必填,2~20字), required, placeholder, span(1|2)
 type 白名单（仅此 11 种）：input | textarea | inputNumber | select | radio | checkbox | datePicker | timePicker | switch | cascader | upload
