@@ -6,6 +6,8 @@ import type { ChatItem } from '../composables/useChat'
 const props = defineProps<{ items: ChatItem[]; generating: boolean }>()
 const emit = defineEmits<{ send: [text: string]; stop: [] }>()
 
+const rootEl = ref<HTMLElement | null>(null)
+
 async function copyRaw(raw?: string) {
   if (!raw) return
   try {
@@ -48,13 +50,19 @@ watch(
   () => props.items.map((i) => i.raw).join(''),
   async () => {
     await nextTick()
+    // 代码块内容流式增长时跟随滚动到底部；仅滚动正在生成的那一块，已完成的保持用户视角
+    if (rootEl.value && props.generating) {
+      const codes = rootEl.value.querySelectorAll('pre.code')
+      const last = codes[codes.length - 1] as HTMLElement | undefined
+      if (last) last.scrollTop = last.scrollHeight
+    }
     listEl.value?.scrollTo({ top: listEl.value.scrollHeight })
   },
 )
 </script>
 
 <template>
-  <aside class="chat">
+  <aside ref="rootEl" class="chat">
     <div ref="listEl" class="msgs">
       <div class="row">
         <span class="ava">AI</span>
