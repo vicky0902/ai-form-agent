@@ -26,3 +26,6 @@ dist-ssr
 # local secrets
 .env.local
 .env.*.local
+
+# 内部文档：含公司项目信息与个人账单细节，禁止公开（红线清单第 1/3 条）
+docs/internal/
