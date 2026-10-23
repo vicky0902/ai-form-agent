@@ -96,7 +96,8 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
         content:
           `你上一次的输出未通过校验（${errors.length} 个错误）：\n` +
           errors.map((e, i) => `${i + 1}. ${e}`).join('\n') +
-          '\n请修复全部错误，重新输出修改后的完整 JSON 配置，只输出 JSON。',
+          '\n请修复全部错误，重新输出修改后的完整 JSON 配置，只输出 JSON。' +
+          '\n再次提醒：每个 field 必须是英文小驼峰（如 photos、faultLevel），绝不能是中文。',
       },
     ]
   }

@@ -21,7 +21,24 @@ type 白名单（仅此 11 种）：input | textarea | inputNumber | select | ra
 
 options 结构：{ label: 中文文案, value: 小写英文标识 }，cascader 子级放 children
 排版：短字段 span:1 并排；textarea/upload/cascader/daterange 用 span:2；字段>8个必须用 groups 分组
-禁止：白名单之外的任何属性（无 CSS/style/class）、中文 field、select 类缺 options`
+禁止：白名单之外的任何属性（无 CSS/style/class）、中文 field、select 类缺 options
+
+【正确示例】（严格模仿此结构与命名风格，field 一律英文小驼峰）：
+{
+  "formTitle": "会议室预约",
+  "columns": 2,
+  "groups": [{ "title": "会议信息", "fields": ["topic", "room", "attendees", "dateRange", "needProjector", "notes"] }],
+  "fields": [
+    { "type": "input", "field": "topic", "title": "会议主题", "required": true, "placeholder": "请输入会议主题", "maxLength": 50 },
+    { "type": "cascader", "field": "room", "title": "会议室", "required": true, "span": 2,
+      "options": [{ "label": "A栋", "value": "a", "children": [{ "label": "A-101", "value": "a101" }] }] },
+    { "type": "inputNumber", "field": "attendees", "title": "参会人数", "required": true, "min": 1, "max": 200, "unit": "人" },
+    { "type": "datePicker", "field": "dateRange", "title": "会议日期", "required": true, "span": 2, "dateType": "daterange" },
+    { "type": "switch", "field": "needProjector", "title": "需要投影" },
+    { "type": "upload", "field": "attachments", "title": "会议材料", "span": 2, "limit": 3, "accept": ".pdf,.docx" },
+    { "type": "textarea", "field": "notes", "title": "备注", "span": 2, "rows": 3, "placeholder": "其他说明…" }
+  ]
+}`
 
 const OUTPUT_RULES = `输出要求：
 1. 只输出一个 JSON 对象，不要 markdown 代码块，不要任何解释文字
