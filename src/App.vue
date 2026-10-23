@@ -319,8 +319,21 @@ watch(
   .cards {
     grid-template-columns: 1fr;
   }
+  /* 移动端导航改两行：品牌+头像一行，功能链接一行（入口全保留，与 PC 功能一致） */
+  .nav {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 12px 16px;
+  }
   .links {
-    display: none;
+    display: flex;
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+    gap: 22px;
+  }
+  .avatar {
+    margin-left: auto;
   }
 }
 
