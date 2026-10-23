@@ -152,5 +152,13 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
     ac?.abort()
   }
 
-  return { items, generating, currentSchema, send, stop }
+  /** 清空会话与当前表单，回到初始状态 */
+  function reset() {
+    if (generating.value) return
+    items.value = []
+    currentSchema.value = null
+    history = []
+  }
+
+  return { items, generating, currentSchema, send, stop, reset }
 }

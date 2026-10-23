@@ -1,229 +1,437 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import ChatPanel from './components/ChatPanel.vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import PromptCard from './components/PromptCard.vue'
 import FormRenderer from './components/FormRenderer.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
 import { useChat } from './composables/useChat'
 
 const view = ref<'form' | 'json'>('form')
 const settingsOpen = ref(false)
+const streamEl = ref<HTMLElement | null>(null)
 
 const chat = useChat({
   onSchema: () => {
     view.value = 'form'
   },
 })
-const { items, generating, currentSchema, send, stop } = chat
+const { items, generating, currentSchema, send, stop, reset } = chat
+
+const lastItem = computed(() => items.value[items.value.length - 1])
+const failed = computed(() => lastItem.value?.status === 'fail')
+const streaming = computed(() => generating.value)
+
+const statusPill = computed(() => {
+  if (generating.value) return { text: '生成中…', cls: 'run' }
+  if (failed.value) return { text: '生成失败', cls: 'err' }
+  if (currentSchema.value) return { text: `已生成 ${currentSchema.value.fields.length} 个字段`, cls: 'ok' }
+  return null
+})
 
 const schemaJson = computed(() =>
   currentSchema.value ? JSON.stringify(currentSchema.value, null, 2) : '',
 )
+
+function soon(name: string) {
+  ElMessage.info(`${name}在规划中，见 GitHub README 的 Roadmap`)
+}
+
+async function copyJson() {
+  const text = currentSchema.value ? JSON.stringify(currentSchema.value, null, 2) : (lastItem.value?.raw ?? '')
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
+// 流式代码面板自动滚动到底部
+watch(
+  () => items.value.map((i) => i.raw).join(''),
+  async () => {
+    await nextTick()
+    if (streamEl.value) streamEl.value.scrollTop = streamEl.value.scrollHeight
+  },
+)
 </script>
 
 <template>
-  <div class="app">
-    <header class="topbar">
-      <span class="logo">✦</span>
-      <span class="name">AI 表单生成器</span>
-      <span class="badge">在线 Demo</span>
-      <span class="sp" />
-      <button type="button" class="settings" @click="settingsOpen = true">⚙ 设置</button>
+  <div class="page">
+    <header class="nav-wrap">
+      <div class="nav">
+        <div class="brand">
+          <span class="logo">✦</span>
+          <span class="brand-name">AI 表单</span>
+        </div>
+        <nav class="links">
+          <a class="active" href="#" @click.prevent>首页</a>
+          <a href="#" @click.prevent="soon('模板库')">模板库</a>
+          <a href="#" @click.prevent="soon('历史记录')">历史记录</a>
+        </nav>
+        <button type="button" class="avatar" title="设置（BYOK）" @click="settingsOpen = true">我</button>
+      </div>
     </header>
-    <div class="body">
-      <ChatPanel :items="items" :generating="generating" @send="send" @stop="stop" />
-      <main class="canvas">
-        <div class="tabs">
-          <button
-            type="button"
-            class="tab"
-            :class="{ active: view === 'form' }"
-            :disabled="generating"
-            @click="view = 'form'"
-          >
-            表单预览
-          </button>
-          <button
-            type="button"
-            class="tab"
-            :class="{ active: view === 'json' }"
-            :disabled="generating"
-            @click="view = 'json'"
-          >
-            Schema JSON
-          </button>
-        </div>
-        <div class="stage">
-          <div v-if="generating" class="skeleton">
-            <div class="sk-title" />
-            <div class="sk-row" style="width: 80%" />
-            <div class="sk-row" />
-            <div class="sk-row" style="width: 60%" />
-            <div class="sk-note">AI 正在生成表单配置…</div>
+
+    <section class="hero">
+      <span class="hero-badge">AI 驱动 · 智能生成</span>
+      <h1>用一句话，生成你的智能表单</h1>
+      <p class="hero-sub">描述你的需求，AI 自动补全字段、校验规则与排版，几分钟搭好一份专业表单。</p>
+    </section>
+
+    <main class="cards">
+      <PromptCard
+        :generating="generating"
+        :has-schema="!!currentSchema"
+        @send="send"
+        @stop="stop"
+        @reset="reset"
+      />
+
+      <section class="card result">
+        <div class="res-head">
+          <div class="res-title">
+            AI 生成结果
+            <span v-if="statusPill" class="pill" :class="statusPill.cls">{{ statusPill.text }}</span>
           </div>
-          <div v-else-if="!currentSchema" class="empty">
-            <div class="empty-icon">▦</div>
-            <p>生成的表单会出现在这里</p>
-          </div>
-          <FormRenderer v-else-if="view === 'form'" :schema="currentSchema" />
-          <pre v-else class="json">{{ schemaJson }}</pre>
+          <a class="res-copy" href="#" @click.prevent="copyJson">复制 JSON</a>
         </div>
-      </main>
-    </div>
+
+        <div class="res-body">
+          <!-- 空态 -->
+          <div v-if="!lastItem && !generating" class="empty">
+            <div class="art" aria-hidden="true" />
+            <p>生成结果会出现在这里</p>
+          </div>
+
+          <!-- 流式中 -->
+          <template v-if="streaming">
+            <pre ref="streamEl" class="stream-code">{{ lastItem?.raw || '// 正在连接模型…' }}</pre>
+            <div class="note run"><span class="dot" />{{ lastItem?.note || '正在生成…' }}</div>
+          </template>
+
+          <!-- 失败 -->
+          <template v-else-if="failed">
+            <div class="note err">{{ lastItem?.note }}</div>
+            <details v-if="lastItem?.raw" class="raw">
+              <summary>查看模型原始输出</summary>
+              <pre class="stream-code">{{ lastItem.raw }}</pre>
+            </details>
+          </template>
+
+          <!-- 成功 -->
+          <template v-else-if="currentSchema">
+            <div class="tabs">
+              <button
+                type="button"
+                class="tab"
+                :class="{ active: view === 'form' }"
+                @click="view = 'form'"
+              >
+                表单预览
+              </button>
+              <button
+                type="button"
+                class="tab"
+                :class="{ active: view === 'json' }"
+                @click="view = 'json'"
+              >
+                Schema JSON
+              </button>
+            </div>
+            <FormRenderer v-if="view === 'form'" :schema="currentSchema" />
+            <pre v-else class="json">{{ schemaJson }}</pre>
+          </template>
+        </div>
+      </section>
+    </main>
+
     <SettingsDrawer v-model:open="settingsOpen" />
   </div>
 </template>
 
 <style scoped>
-.app {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: #fff;
+.page {
+  min-height: 100vh;
+  background:
+    radial-gradient(60% 50% at 8% 0%, rgba(251, 207, 232, 0.55), transparent 60%),
+    radial-gradient(55% 45% at 92% 8%, rgba(199, 210, 254, 0.6), transparent 60%),
+    radial-gradient(45% 40% at 55% 100%, rgba(254, 243, 199, 0.5), transparent 60%),
+    linear-gradient(180deg, #fdfbff 0%, #f6f7fc 100%);
+  padding: 20px clamp(16px, 4vw, 56px) 48px;
 }
-.topbar {
+
+/* 顶部导航 */
+.nav-wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+.nav {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 11px 18px;
-  border-bottom: 1px solid #e4e7ed;
+  gap: 28px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  border-radius: 18px;
+  padding: 14px 22px;
+  box-shadow: 0 8px 30px rgba(80, 60, 140, 0.07);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .logo {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: #409eff;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #f472b6, #8b5cf6);
   color: #fff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-size: 16px;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
+}
+.brand-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: #1f2330;
+}
+.links {
+  margin-left: auto;
+  display: flex;
+  gap: 26px;
+}
+.links a {
+  color: #6b7186;
   font-size: 14px;
+  text-decoration: none;
 }
-.name {
-  font-weight: 500;
+.links a.active {
+  color: #1f2330;
+  font-weight: 600;
 }
-.badge {
-  font-size: 11px;
-  color: #67c23a;
-  background: #f0f9eb;
-  border-radius: 999px;
-  padding: 2px 9px;
+.links a:hover {
+  color: #8b5cf6;
 }
-.sp {
-  flex: 1;
-}
-.settings {
-  border: 1px solid #e4e7ed;
-  background: #fff;
-  color: #606266;
-  border-radius: 7px;
-  padding: 5px 12px;
-  font-size: 12.5px;
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0;
   cursor: pointer;
+  background: linear-gradient(135deg, #f472b6, #818cf8);
+  color: #fff;
+  font-size: 13px;
+  box-shadow: 0 4px 12px rgba(244, 114, 182, 0.35);
 }
-.settings:hover {
-  color: #409eff;
-  border-color: #409eff;
+
+/* Hero */
+.hero {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 44px 6px 30px;
 }
-.body {
-  flex: 1;
-  min-height: 0;
+.hero-badge {
+  display: inline-block;
+  background: rgba(139, 92, 246, 0.1);
+  color: #7c3aed;
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 12.5px;
+}
+.hero h1 {
+  margin: 16px 0 12px;
+  font-size: clamp(26px, 4vw, 40px);
+  font-weight: 700;
+  color: #16181f;
+  letter-spacing: 0.5px;
+}
+.hero-sub {
+  margin: 0;
+  color: #5b6172;
+  font-size: 15px;
+}
+
+/* 双卡片 */
+.cards {
+  max-width: 1280px;
+  margin: 0 auto;
   display: grid;
-  grid-template-columns: 375px 1fr;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 26px;
+  align-items: start;
 }
-@media (max-width: 880px) {
-  .body {
+.card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(80, 60, 140, 0.08);
+}
+@media (max-width: 900px) {
+  .cards {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(220px, 42%) 1fr;
   }
-  .chat {
-    border-right: 0 !important;
-    border-bottom: 1px solid #e4e7ed;
+  .links {
+    display: none;
   }
 }
-.canvas {
+
+/* 结果卡 */
+.result {
+  padding: 22px 26px;
+  min-height: 420px;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+}
+.res-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.res-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2330;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pill {
+  font-size: 11.5px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-weight: 400;
+}
+.pill.ok {
+  color: #059669;
+  background: #ecfdf5;
+}
+.pill.run {
+  color: #7c3aed;
+  background: #f3e8ff;
+}
+.pill.err {
+  color: #dc2626;
+  background: #fef2f2;
+}
+.res-copy {
+  font-size: 13px;
+  color: #6b7186;
+  text-decoration: none;
+}
+.res-copy:hover {
+  color: #8b5cf6;
+}
+.res-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
 }
-.tabs {
-  display: flex;
-  gap: 4px;
-  padding: 10px 18px 0;
-  border-bottom: 1px solid #e4e7ed;
-}
-.tab {
-  border: 0;
-  background: transparent;
-  color: #909399;
-  padding: 8px 13px 10px;
-  font-size: 13.5px;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-}
-.tab.active {
-  color: #409eff;
-  border-bottom-color: #409eff;
-}
-.stage {
-  flex: 1;
-  overflow-y: auto;
-  padding: 22px 26px;
-}
+
+/* 空态装饰 */
 .empty {
-  height: 100%;
-  min-height: 300px;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  color: #909399;
-}
-.empty-icon {
-  font-size: 34px;
-  opacity: 0.4;
+  gap: 16px;
+  color: #8b91a5;
+  min-height: 320px;
 }
 .empty p {
   margin: 0;
+  font-size: 13.5px;
+}
+.art {
+  width: min(420px, 90%);
+  height: 180px;
+  border-radius: 16px;
+  background:
+    radial-gradient(38% 55% at 22% 40%, rgba(244, 114, 182, 0.5), transparent 70%),
+    radial-gradient(40% 60% at 55% 30%, rgba(167, 139, 250, 0.5), transparent 70%),
+    radial-gradient(35% 50% at 80% 65%, rgba(129, 140, 248, 0.45), transparent 70%),
+    radial-gradient(30% 45% at 40% 80%, rgba(94, 234, 212, 0.4), transparent 70%),
+    linear-gradient(135deg, #fdf4ff, #eef2ff);
+}
+
+/* 流式面板 */
+.stream-code {
+  margin: 0 0 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #1c1f2b;
+  color: #c9d4e3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  max-height: 260px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.note {
   font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
-.skeleton {
-  max-width: 560px;
-  margin: 0 auto;
+.note.run {
+  color: #7c3aed;
 }
-.sk-title,
-.sk-row {
-  height: 15px;
-  border-radius: 6px;
-  margin-bottom: 22px;
-  background: linear-gradient(90deg, #eceef1 25%, #f6f7f9 50%, #eceef1 75%);
-  background-size: 400% 100%;
-  animation: shimmer 1.2s infinite;
+.note.err {
+  color: #dc2626;
 }
-.sk-title {
-  width: 38%;
-  height: 19px;
-  margin-bottom: 30px;
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  animation: blink 1s infinite;
 }
-.sk-note {
+@keyframes blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+.raw {
+  margin-top: 10px;
   font-size: 12.5px;
-  color: #909399;
-  text-align: center;
+  color: #6b7186;
 }
-@keyframes shimmer {
-  0% {
-    background-position: 100% 0;
-  }
-  100% {
-    background-position: 0 0;
-  }
+.raw summary {
+  cursor: pointer;
+}
+
+/* 页签与表单 */
+.tabs {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+.tab {
+  border: 0;
+  background: transparent;
+  color: #8b91a5;
+  font-size: 13.5px;
+  padding: 4px 2px 8px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.tab.active {
+  color: #8b5cf6;
+  border-bottom-color: #8b5cf6;
+  font-weight: 500;
 }
 .json {
   margin: 0;
   padding: 16px 18px;
-  border-radius: 10px;
-  background: #20232a;
+  border-radius: 14px;
+  background: #1c1f2b;
   color: #c9d4e3;
   overflow-x: auto;
   font-size: 12px;
