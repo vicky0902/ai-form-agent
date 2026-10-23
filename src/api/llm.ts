@@ -3,9 +3,14 @@ import { loadByok } from '../composables/useByok'
 /** 线上部署时前端静态域名与中转服务不同源，通过 VITE_API_BASE 指定中转地址 */
 const API_BASE: string = import.meta.env.VITE_API_BASE ?? ''
 
+export type MessageContent = string | Array<
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+>
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
-  content: string
+  content: MessageContent
 }
 
 /** 自带 Key（BYOK）：请求头透传给中转服务，中转优先使用 */

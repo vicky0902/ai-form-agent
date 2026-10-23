@@ -23920,7 +23920,7 @@ var require_express2 = __commonJS({
 var import_express = __toESM(require_express2(), 1);
 var import_node_stream = require("node:stream");
 var app = (0, import_express.default)();
-app.use(import_express.default.json({ limit: "64kb" }));
+app.use(import_express.default.json({ limit: "12mb" }));
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -24011,9 +24011,27 @@ app.post("/api/chat", async (req, res) => {
   if (!Array.isArray(messages) || messages.length === 0 || messages.length > 20) {
     return res.status(400).json({ error: "\u53C2\u6570\u4E0D\u5408\u6CD5" });
   }
+  let hasImage = false;
+  function validContent(c) {
+    if (typeof c === "string") return c.length <= 6e3;
+    if (Array.isArray(c) && c.length <= 4) {
+      return c.every((p) => {
+        if (p?.type === "text") return typeof p.text === "string" && p.text.length <= 6e3;
+        if (p?.type === "image_url") {
+          const u = p.image_url?.url;
+          if (typeof u === "string" && u.startsWith("data:image/") && u.length <= 9e6) {
+            hasImage = true;
+            return true;
+          }
+        }
+        return false;
+      });
+    }
+    return false;
+  }
   for (const m of messages) {
     const roleOk = m && (m.role === "user" || m.role === "assistant" || m.role === "system");
-    if (!roleOk || typeof m.content !== "string" || m.content.length > 6e3) {
+    if (!roleOk || !validContent(m.content)) {
       return res.status(400).json({ error: "\u6D88\u606F\u683C\u5F0F\u4E0D\u5408\u6CD5" });
     }
   }
@@ -24028,11 +24046,11 @@ app.post("/api/chat", async (req, res) => {
       method: "POST",
       headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: cfg.model,
+        model: hasImage ? process.env.LLM_VISION_MODEL || "glm-4v-flash" : cfg.model,
         messages,
         stream: true,
         temperature: 0.3,
-        thinking: { type: "disabled" }
+        ...hasImage ? {} : { thinking: { type: "disabled" } }
       }),
       signal: ac.signal
     });

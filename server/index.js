@@ -2,7 +2,7 @@ import express from 'express'
 import { Readable } from 'node:stream'
 
 const app = express()
-app.use(express.json({ limit: '64kb' })) // system prompt 含完整规范摘要，远超 2kb
+app.use(express.json({ limit: '12mb' })) // 图片走 base64 // system prompt 含完整规范摘要，远超 2kb
 
 // 静态托管域名与云托管域名不同源，允许任意来源调用（BYOK 头一并放行）
 app.use((req, res, next) => {
@@ -109,9 +109,27 @@ app.post('/api/chat', async (req, res) => {
   if (!Array.isArray(messages) || messages.length === 0 || messages.length > 20) {
     return res.status(400).json({ error: '参数不合法' })
   }
+  let hasImage = false
+  function validContent(c) {
+    if (typeof c === 'string') return c.length <= 6000
+    if (Array.isArray(c) && c.length <= 4) {
+      return c.every((p) => {
+        if (p?.type === 'text') return typeof p.text === 'string' && p.text.length <= 6000
+        if (p?.type === 'image_url') {
+          const u = p.image_url?.url
+          if (typeof u === 'string' && u.startsWith('data:image/') && u.length <= 9_000_000) {
+            hasImage = true
+            return true
+          }
+        }
+        return false
+      })
+    }
+    return false
+  }
   for (const m of messages) {
     const roleOk = m && (m.role === 'user' || m.role === 'assistant' || m.role === 'system')
-    if (!roleOk || typeof m.content !== 'string' || m.content.length > 6000) {
+    if (!roleOk || !validContent(m.content)) {
       return res.status(400).json({ error: '消息格式不合法' })
     }
   }
@@ -131,11 +149,11 @@ app.post('/api/chat', async (req, res) => {
       method: 'POST',
       headers: { Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: cfg.model,
+        model: hasImage ? (process.env.LLM_VISION_MODEL || 'glm-4v-flash') : cfg.model,
         messages,
         stream: true,
         temperature: 0.3,
-        thinking: { type: 'disabled' },
+        ...(hasImage ? {} : { thinking: { type: 'disabled' } }),
       }),
       signal: ac.signal,
     })

@@ -10,6 +10,7 @@ export interface ChatItem {
   id: number
   role: 'user' | 'ai'
   text: string
+  hasImage?: boolean
   /** ai：流式原始输出 */
   raw?: string
   status: 'streaming' | 'ok' | 'fail' | 'aborted'
@@ -28,9 +29,9 @@ export function useChat(handlers: { onSchema: (s: AnySchema, prompt: string) => 
   let history: ChatMessage[] = []
   let ac: AbortController | null = null
 
-  function pushUser(text: string) {
+  function pushUser(text: string, hasImage = false) {
     // 必须 reactive：后续对流式字段的直接赋值才能触发视图更新（原始对象赋值不会）
-    items.value.push(reactive({ id: ++uid, role: 'user', text, status: 'ok' } as ChatItem))
+    items.value.push(reactive({ id: ++uid, role: 'user', text, hasImage, status: 'ok' } as ChatItem))
   }
 
   function pushAI(): ChatItem {
@@ -121,18 +122,28 @@ export function useChat(handlers: { onSchema: (s: AnySchema, prompt: string) => 
   }
 
   let lastPrompt = ''
-  async function send(text: string) {
+  async function send(text: string, image?: string) {
     const clean = text.trim().slice(0, 500)
     if (generating.value || !clean) return
     lastPrompt = clean
-    pushUser(clean)
+    pushUser(clean, !!image)
     const item = pushAI()
     generating.value = true
     try {
+      // 带图片 = 按图片生成一份新表单（不走修改模式）
+      const fresh = !!image
       const messages: ChatMessage[] = [
-        { role: 'system', content: buildSystemPrompt(currentSchema.value) },
+        { role: 'system', content: buildSystemPrompt(fresh ? null : currentSchema.value) },
         ...history.slice(-HISTORY_MESSAGES),
-        { role: 'user', content: clean },
+        {
+          role: 'user',
+          content: image
+            ? ([
+                { type: 'text', text: clean },
+                { type: 'image_url', image_url: { url: image } },
+              ] as import('../api/llm').MessageContent)
+            : clean,
+        },
       ]
       const schema = await generate(messages, item)
       currentSchema.value = schema
