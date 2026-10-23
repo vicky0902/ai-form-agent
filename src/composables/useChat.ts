@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 import type { FormSchema } from '../types'
 import { streamChat, type ChatMessage } from '../api/llm'
 import { extractJson } from '../core/extract'
@@ -28,11 +28,18 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
   let ac: AbortController | null = null
 
   function pushUser(text: string) {
-    items.value.push({ id: ++uid, role: 'user', text, status: 'ok' })
+    // 必须 reactive：后续对流式字段的直接赋值才能触发视图更新（原始对象赋值不会）
+    items.value.push(reactive({ id: ++uid, role: 'user', text, status: 'ok' } as ChatItem))
   }
 
   function pushAI(): ChatItem {
-    const item: ChatItem = { id: ++uid, role: 'ai', text: '', status: 'streaming', note: '正在生成…' }
+    const item = reactive({
+      id: ++uid,
+      role: 'ai',
+      text: '',
+      status: 'streaming',
+      note: '正在生成…',
+    } as ChatItem)
     items.value.push(item)
     return item
   }
