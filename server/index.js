@@ -25,7 +25,56 @@ function rateLimited(ip) {
   return rec.count > 5
 }
 
+// 自带 Key（BYOK）：请求头里的用户配置优先于服务端内置配置。
+// 头部值做长度与格式校验，绝不写入日志。
+const HEADER_LIMITS = { 'x-llm-base-url': 200, 'x-llm-api-key': 200, 'x-llm-model': 100 }
+function userOverride(req) {
+  const out = {}
+  for (const [name, max] of Object.entries(HEADER_LIMITS)) {
+    const v = req.headers[name]
+    if (typeof v === 'string' && v.length > 0 && v.length <= max) {
+      out[name.slice('x-llm-'.length).replace(/-(\w)/g, (_, c) => c.toUpperCase())] = v
+    }
+  }
+  if (out.baseUrl && !/^https?:\/\//.test(out.baseUrl)) delete out.baseUrl
+  return out.apiKey ? out : null
+}
+
+function upstreamConfig(req) {
+  const env = { baseUrl: BASE, apiKey: KEY, model: MODEL }
+  return { ...env, ...userOverride(req) }
+}
+
 app.get('/health', (_req, res) => res.json({ ok: true }))
+
+app.post('/api/verify', async (req, res) => {
+  const cfg = upstreamConfig(req)
+  try {
+    const r = await fetch(`${cfg.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages: [{ role: 'user', content: 'ok' }],
+        max_tokens: 4,
+        thinking: { type: 'disabled' },
+      }),
+    })
+    if (!r.ok) {
+      const text = await r.text().catch(() => '')
+      let msg = `HTTP ${r.status}`
+      try {
+        const j = JSON.parse(text)
+        if (j?.error?.message) msg = j.error.message
+      } catch {}
+      return res.json({ ok: false, error: msg })
+    }
+    const j = await r.json().catch(() => null)
+    return res.json({ ok: true, model: j?.model })
+  } catch {
+    return res.json({ ok: false, error: '无法连接该模型服务，请检查 Base URL' })
+  }
+})
 
 app.post('/api/chat', async (req, res) => {
   if (rateLimited(req.ip ?? 'unknown')) {
@@ -51,13 +100,14 @@ app.post('/api/chat', async (req, res) => {
     if (!res.writableEnded) ac.abort()
   })
 
+  const cfg = upstreamConfig(req)
   let upstream
   try {
-    upstream = await fetch(`${BASE}/chat/completions`, {
+    upstream = await fetch(`${cfg.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: MODEL,
+        model: cfg.model,
         messages,
         stream: true,
         temperature: 0.3,

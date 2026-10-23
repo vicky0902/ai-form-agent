@@ -1,9 +1,20 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import type { ChatItem } from '../composables/useChat'
 
 const props = defineProps<{ items: ChatItem[]; generating: boolean }>()
 const emit = defineEmits<{ send: [text: string]; stop: [] }>()
+
+async function copyRaw(raw?: string) {
+  if (!raw) return
+  try {
+    await navigator.clipboard.writeText(raw)
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败，请手动选择复制')
+  }
+}
 
 const input = ref('')
 const listEl = ref<HTMLElement | null>(null)
@@ -60,7 +71,12 @@ watch(
         <div v-else class="row">
           <span class="ava">AI</span>
           <div class="bubble">
-            <pre v-if="item.raw" class="code">{{ item.raw }}</pre>
+            <template v-if="item.raw">
+              <pre class="code">{{ item.raw }}</pre>
+              <div class="codebar">
+                <button type="button" class="copy" @click="copyRaw(item.raw)">复制 JSON</button>
+              </div>
+            </template>
             <div class="status" :class="item.status">
               <span v-if="item.status === 'streaming'" class="dot" />{{ item.note }}
             </div>
@@ -149,7 +165,7 @@ watch(
   overflow-wrap: break-word;
 }
 .code {
-  margin: 2px 0 6px;
+  margin: 2px 0 4px;
   padding: 9px 11px;
   border-radius: 8px;
   background: #20232a;
@@ -161,6 +177,22 @@ watch(
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
+}
+.codebar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 4px;
+}
+.copy {
+  border: 0;
+  background: transparent;
+  color: #909399;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.copy:hover {
+  color: #409eff;
 }
 .status {
   font-size: 12.5px;

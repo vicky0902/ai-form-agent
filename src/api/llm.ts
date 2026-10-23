@@ -1,6 +1,18 @@
+import { loadByok } from '../composables/useByok'
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
+}
+
+/** 自带 Key（BYOK）：请求头透传给中转服务，中转优先使用 */
+function byokHeaders(): Record<string, string> {
+  const cfg = loadByok()
+  if (!cfg?.apiKey) return {}
+  const h: Record<string, string> = { 'x-llm-api-key': cfg.apiKey }
+  if (cfg.baseUrl) h['x-llm-base-url'] = cfg.baseUrl
+  if (cfg.model) h['x-llm-model'] = cfg.model
+  return h
 }
 
 /**
@@ -15,7 +27,7 @@ export async function streamChat(opts: {
 }): Promise<string> {
   const res = await fetch('/api/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...byokHeaders() },
     body: JSON.stringify({ messages: opts.messages }),
     signal: opts.signal,
   })
@@ -64,4 +76,22 @@ export async function streamChat(opts: {
     }
   }
   return full
+}
+
+/** 验证自带 Key 是否可用（走中转 /api/verify，发一个 max_tokens=1 的最小请求） */
+export async function verifyKey(cfg: {
+  baseUrl?: string
+  apiKey: string
+  model?: string
+}): Promise<{ ok: boolean; model?: string; error?: string }> {
+  const headers: Record<string, string> = { 'x-llm-api-key': cfg.apiKey }
+  if (cfg.baseUrl) headers['x-llm-base-url'] = cfg.baseUrl
+  if (cfg.model) headers['x-llm-model'] = cfg.model
+  try {
+    const res = await fetch('/api/verify', { method: 'POST', headers })
+    const j = (await res.json()) as { ok: boolean; model?: string; error?: string }
+    return j
+  } catch {
+    return { ok: false, error: '网络异常，无法连接中转服务' }
+  }
 }

@@ -2,9 +2,11 @@
 import { computed, ref } from 'vue'
 import ChatPanel from './components/ChatPanel.vue'
 import FormRenderer from './components/FormRenderer.vue'
+import SettingsDrawer from './components/SettingsDrawer.vue'
 import { useChat } from './composables/useChat'
 
 const view = ref<'form' | 'json'>('form')
+const settingsOpen = ref(false)
 
 const chat = useChat({
   onSchema: () => {
@@ -24,6 +26,8 @@ const schemaJson = computed(() =>
       <span class="logo">✦</span>
       <span class="name">AI 表单生成器</span>
       <span class="badge">在线 Demo</span>
+      <span class="sp" />
+      <button type="button" class="settings" @click="settingsOpen = true">⚙ 设置</button>
     </header>
     <div class="body">
       <ChatPanel :items="items" :generating="generating" @send="send" @stop="stop" />
@@ -65,6 +69,7 @@ const schemaJson = computed(() =>
         </div>
       </main>
     </div>
+    <SettingsDrawer v-model:open="settingsOpen" />
   </div>
 </template>
 
@@ -102,6 +107,22 @@ const schemaJson = computed(() =>
   background: #f0f9eb;
   border-radius: 999px;
   padding: 2px 9px;
+}
+.sp {
+  flex: 1;
+}
+.settings {
+  border: 1px solid #e4e7ed;
+  background: #fff;
+  color: #606266;
+  border-radius: 7px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.settings:hover {
+  color: #409eff;
+  border-color: #409eff;
 }
 .body {
   flex: 1;
