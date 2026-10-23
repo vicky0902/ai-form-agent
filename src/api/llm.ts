@@ -22,8 +22,35 @@ function byokHeaders(): Record<string, string> {
  * 调用中转服务，流式接收 LLM 输出。
  * SSE 按 "\n\n" 分帧（TCP 分包可能截断帧，必须缓冲拼接，不能按 chunk 直接 parse）。
  * 只拼接 delta.content——上游思考模型的 reasoning_content 不进入正文。
+ * 网络错误/网关 5xx（典型场景：容器缩容到零后的冷启动窗口）自动重试。
  */
 export async function streamChat(opts: {
+  messages: ChatMessage[]
+  signal: AbortSignal
+  onDelta: (delta: string) => void
+  onRetry?: (attempt: number, reason: string) => void
+}): Promise<string> {
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      opts.onRetry?.(attempt, lastErr instanceof Error ? lastErr.message : '')
+      await new Promise((r) => setTimeout(r, attempt === 1 ? 3000 : 8000))
+      if (opts.signal.aborted) throw new DOMException('Aborted', 'AbortError')
+    }
+    try {
+      return await doStream(opts)
+    } catch (err) {
+      if (opts.signal.aborted) throw err
+      const msg = err instanceof Error ? err.message : ''
+      const retriable = err instanceof TypeError || /50[234]/.test(msg)
+      if (!retriable) throw err
+      lastErr = err
+    }
+  }
+  throw lastErr
+}
+
+async function doStream(opts: {
   messages: ChatMessage[]
   signal: AbortSignal
   onDelta: (delta: string) => void
@@ -37,11 +64,14 @@ export async function streamChat(opts: {
 
   if (!res.ok || !res.body) {
     let msg = `请求失败（${res.status}）`
+    if (res.status === 502 || res.status === 503) msg = '服务冷启动中（503）'
     try {
       const j = (await res.json()) as { error?: string }
       if (j?.error) msg = j.error
     } catch {}
-    throw new Error(msg)
+    const err = new Error(msg) as Error & { status?: number }
+    err.status = res.status
+    throw err
   }
 
   const reader = res.body.getReader()

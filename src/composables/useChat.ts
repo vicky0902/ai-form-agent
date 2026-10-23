@@ -58,6 +58,12 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
           onDelta: (d) => {
             item.raw = (item.raw ?? '') + d
           },
+          onRetry: (attempt) => {
+            item.note =
+              attempt === 1
+                ? '服务休眠中，正在唤醒（约 10 秒）…'
+                : '仍在唤醒服务，请稍候…'
+          },
         })
       } catch (err) {
         if (ac.signal.aborted) {
@@ -66,7 +72,10 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
           throw err
         }
         item.status = 'fail'
-        item.note = (err as Error).message
+        item.note =
+          (err as Error).message.includes('冷启动') || (err as Error).message.includes('50')
+            ? '服务暂时不可用（可能在冷启动），请 1 分钟后重试'
+            : (err as Error).message
         throw err
       }
 
