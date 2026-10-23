@@ -54,6 +54,9 @@ function upstreamConfig(req) {
   return { ...env, ...userOverride(req) }
 }
 
+// 云托管就绪探测可能请求根路径，必须返回 200
+app.get('/', (_req, res) => res.json({ ok: true, service: 'ai-form-agent-relay' }))
+
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
 app.post('/api/verify', async (req, res) => {
