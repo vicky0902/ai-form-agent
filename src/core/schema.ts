@@ -6,6 +6,7 @@ export const FORM_SCHEMA = {
   additionalProperties: false,
   required: ['formTitle', 'fields'],
   properties: {
+    pageType: { type: 'string', const: 'form' },
     formTitle: { type: 'string', minLength: 1, maxLength: 30 },
     description: { type: 'string', maxLength: 100 },
     labelWidth: { type: 'integer', minimum: 80, maximum: 200 },

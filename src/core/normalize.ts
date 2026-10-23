@@ -55,6 +55,7 @@ function normalizeList(input: unknown): unknown {
 export function normalizeFormSchema(input: unknown): unknown {
   if (!input || typeof input !== 'object') return input
   const obj = { ...(input as Record<string, unknown>) }
+  if (!obj.pageType) obj.pageType = 'form'
 
   // A. 结构反转修复
   if (Array.isArray(obj.fields) && obj.fields.length > 0 && obj.fields.every((f) => typeof f === 'string')) {
