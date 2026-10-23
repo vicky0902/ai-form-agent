@@ -2,6 +2,7 @@ import { reactive, ref } from 'vue'
 import type { FormSchema } from '../types'
 import { streamChat, type ChatMessage } from '../api/llm'
 import { extractJson } from '../core/extract'
+import { normalizeFormSchema } from '../core/normalize'
 import { buildSystemPrompt } from '../core/prompt'
 import { validateFormSchema } from '../core/validate'
 
@@ -71,7 +72,8 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
 
       let parsed: unknown
       try {
-        parsed = extractJson(raw)
+        // 先做确定性修复（中文字段名/结构反转/引用错位），修不了的才走模型重试
+        parsed = normalizeFormSchema(extractJson(raw))
       } catch (err) {
         item.note = `输出解析失败，自动修复中（第 ${attempt + 1} 次）…`
         convo = withRetryTurn(convo, raw, [(err as Error).message])
