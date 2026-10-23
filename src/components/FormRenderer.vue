@@ -135,12 +135,25 @@ function onSubmit(formData: Record<string, unknown>) {
   ElMessage.success('表单校验通过，已收集数据（演示环境不真实提交）')
   console.log('[ai-form-agent] 提交数据：', formData)
 }
+
+/** 把当前 schema 的 form-create 原生规则复制出去，可直接粘进任何使用 form-create 的项目 */
+async function exportRules() {
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(rules.value, null, 2))
+    ElMessage.success('form-create 规则已复制，可直接粘贴到项目里作为 rule 使用')
+  } catch {
+    ElMessage.error('复制失败，请切到 Schema JSON 页签手动复制')
+  }
+}
 </script>
 
 <template>
   <div v-if="schema" class="renderer">
     <div class="renderer-head">
-      <h2 class="renderer-title">{{ schema.formTitle }}</h2>
+      <div class="title-row">
+        <h2 class="renderer-title">{{ schema.formTitle }}</h2>
+        <button type="button" class="export" @click="exportRules">复制 form-create 规则</button>
+      </div>
       <p v-if="schema.description" class="renderer-desc">{{ schema.description }}</p>
     </div>
     <form-create :rule="rules" :option="option" @submit="onSubmit" />
@@ -148,6 +161,24 @@ function onSubmit(formData: Record<string, unknown>) {
 </template>
 
 <style scoped>
+.export {
+  border: 1px solid #dcdfe6;
+  background: #fff;
+  color: #606266;
+  border-radius: 7px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.export:hover {
+  color: #409eff;
+  border-color: #409eff;
+}
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .renderer {
   max-width: 720px;
   margin: 0 auto;
