@@ -1,6 +1,11 @@
-import type { FormSchema } from '../types'
+import type { FormSchema, ListSchema } from '../types'
 import { ALLOWED_FIELD_PROPS, OPTION_TYPES, type FieldType } from '../types'
-import { formatAjvErrors, validateStructure } from './schema'
+import {
+  formatAjvErrors,
+  validateDetailStructure,
+  validateListStructure,
+  validateStructure,
+} from './schema'
 
 export interface ValidationResult {
   ok: boolean
@@ -8,6 +13,39 @@ export interface ValidationResult {
 }
 
 const CAMEL_RE = /^[a-z][a-zA-Z0-9]*$/
+
+/** 按场景分发校验（含语义层） */
+export function validateAny(data: unknown): ValidationResult {
+  const pageType = (data as { pageType?: string })?.pageType
+  if (pageType === 'list') return validateList(data)
+  if (pageType === 'detail') return validateDetail(data)
+  return validateFormSchema(data)
+}
+
+function validateList(data: unknown): ValidationResult {
+  const ok = validateListStructure(data)
+  const errors = formatAjvErrors(validateListStructure.errors)
+  if (!ok) return { ok: false, errors }
+  const schema = data as ListSchema
+  const seenProp = new Set<string>()
+  for (const c of schema.columns) {
+    if (!CAMEL_RE.test(c.prop)) errors.push(`表格列 prop「${c.prop}」必须是英文小驼峰`)
+    if (seenProp.has(c.prop)) errors.push(`表格列 prop「${c.prop}」重复`)
+    seenProp.add(c.prop)
+  }
+  for (const s of schema.searchFields ?? []) {
+    if (!CAMEL_RE.test(s.field)) errors.push(`搜索字段 field「${s.field}」必须是英文小驼峰`)
+    if (s.type === 'select' && (!s.options || s.options.length === 0)) {
+      errors.push(`搜索字段「${s.title}」是 select 类型，必须提供 options`)
+    }
+  }
+  return { ok: errors.length === 0, errors }
+}
+
+function validateDetail(data: unknown): ValidationResult {
+  const ok = validateDetailStructure(data)
+  return { ok, errors: ok ? [] : formatAjvErrors(validateDetailStructure.errors) }
+}
 
 /** 语义层检查：结构层（Ajv）+ 业务规则，错误信息面向 LLM 回灌，必须具体可执行 */
 export function validateFormSchema(data: unknown): ValidationResult {

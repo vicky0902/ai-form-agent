@@ -45,6 +45,7 @@ export interface FieldGroup {
 }
 
 export interface FormSchema {
+  pageType?: 'form'
   formTitle: string
   description?: string
   labelWidth?: number
@@ -52,6 +53,50 @@ export interface FormSchema {
   groups?: FieldGroup[]
   fields: FormField[]
 }
+
+/** 列表页 schema */
+export interface ListColumn {
+  prop: string
+  label: string
+  width?: number
+}
+
+export interface SearchField {
+  type: 'input' | 'select' | 'datePicker'
+  field: string
+  title: string
+  placeholder?: string
+  options?: FieldOption[]
+}
+
+export interface ListSchema {
+  pageType: 'list'
+  pageTitle: string
+  description?: string
+  searchFields?: SearchField[]
+  columns: ListColumn[]
+}
+
+/** 详情页 schema */
+export interface DetailItem {
+  label: string
+}
+
+export interface DetailGroup {
+  title: string
+  items: DetailItem[]
+}
+
+export interface DetailSchema {
+  pageType: 'detail'
+  pageTitle: string
+  description?: string
+  groups: DetailGroup[]
+}
+
+export type AnySchema = FormSchema | ListSchema | DetailSchema
+
+export type SceneType = 'form' | 'list' | 'detail'
 
 /** 白名单之外的属性，校验时逐个点名 */
 export const ALLOWED_FIELD_PROPS: Record<FieldType, string[]> = {

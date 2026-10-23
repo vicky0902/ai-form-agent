@@ -1,10 +1,10 @@
 import { reactive, ref } from 'vue'
-import type { FormSchema } from '../types'
+import type { AnySchema } from '../types'
 import { streamChat, type ChatMessage } from '../api/llm'
 import { extractJson } from '../core/extract'
-import { normalizeFormSchema } from '../core/normalize'
+import { normalizeAny } from '../core/normalize'
 import { buildSystemPrompt } from '../core/prompt'
-import { validateFormSchema } from '../core/validate'
+import { validateAny } from '../core/validate'
 
 export interface ChatItem {
   id: number
@@ -21,10 +21,10 @@ const HISTORY_MESSAGES = 4
 
 let uid = 0
 
-export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
+export function useChat(handlers: { onSchema: (s: AnySchema, prompt: string) => void }) {
   const items = ref<ChatItem[]>([])
   const generating = ref(false)
-  const currentSchema = ref<FormSchema | null>(null)
+  const currentSchema = ref<AnySchema | null>(null)
   let history: ChatMessage[] = []
   let ac: AbortController | null = null
 
@@ -46,7 +46,7 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
   }
 
   /** 生成 → 解析 → 校验 → 失败带错误回灌自动修复，最多 MAX_RETRIES 次 */
-  async function generate(baseMessages: ChatMessage[], item: ChatItem): Promise<FormSchema> {
+  async function generate(baseMessages: ChatMessage[], item: ChatItem): Promise<AnySchema> {
     let convo = baseMessages
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       ac = new AbortController()
@@ -82,13 +82,13 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
       let parsed: unknown
       try {
         // 先做确定性修复（中文字段名/结构反转/引用错位），修不了的才走模型重试
-        parsed = normalizeFormSchema(extractJson(raw))
+        parsed = normalizeAny(extractJson(raw))
       } catch (err) {
         item.note = `输出解析失败，自动修复中（第 ${attempt + 1} 次）…`
         convo = withRetryTurn(convo, raw, [(err as Error).message])
         continue
       }
-      const result = validateFormSchema(parsed)
+      const result = validateAny(parsed)
       if (!result.ok) {
         item.note = `校验发现 ${result.errors.length} 个问题，自动修复中（第 ${attempt + 1} 次）…`
         convo = withRetryTurn(convo, raw, result.errors)
@@ -98,7 +98,7 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
       item.note = attempt
         ? `✓ Schema 校验通过（自动修复 ${attempt} 次后）`
         : '✓ Schema 校验通过'
-      return parsed as FormSchema
+      return parsed as AnySchema
     }
     item.status = 'fail'
     item.note = `连续 ${MAX_RETRIES + 1} 次输出未通过校验，已停止`
@@ -120,9 +120,11 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
     ]
   }
 
+  let lastPrompt = ''
   async function send(text: string) {
     const clean = text.trim().slice(0, 500)
     if (generating.value || !clean) return
+    lastPrompt = clean
     pushUser(clean)
     const item = pushAI()
     generating.value = true
@@ -139,7 +141,7 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
         { role: 'user', content: clean },
         { role: 'assistant', content: JSON.stringify(schema) },
       ]
-      handlers.onSchema(schema)
+      handlers.onSchema(schema, lastPrompt)
     } catch {
       /* 错误信息已写在 item 上 */
     } finally {
@@ -152,6 +154,11 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
     ac?.abort()
   }
 
+  /** 从历史记录加载一份已生成的配置（可直接继续修改） */
+  function loadSchema(schema: AnySchema) {
+    currentSchema.value = schema
+  }
+
   /** 清空会话与当前表单，回到初始状态 */
   function reset() {
     if (generating.value) return
@@ -160,5 +167,5 @@ export function useChat(handlers: { onSchema: (s: FormSchema) => void }) {
     history = []
   }
 
-  return { items, generating, currentSchema, send, stop, reset }
+  return { items, generating, currentSchema, send, stop, reset, loadSchema }
 }

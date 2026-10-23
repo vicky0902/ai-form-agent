@@ -84,8 +84,90 @@ export const FORM_SCHEMA = {
   },
 } as const
 
+/** 列表页结构层 */
+export const LIST_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['pageType', 'pageTitle', 'columns'],
+  properties: {
+    pageType: { type: 'string', const: 'list' },
+    pageTitle: { type: 'string', minLength: 2, maxLength: 20 },
+    description: { type: 'string', maxLength: 100 },
+    searchFields: {
+      type: 'array',
+      minItems: 0,
+      maxItems: 4,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['type', 'field', 'title'],
+        properties: {
+          type: { type: 'string', enum: ['input', 'select', 'datePicker'] },
+          field: { type: 'string', minLength: 1, maxLength: 40 },
+          title: { type: 'string', minLength: 2, maxLength: 12 },
+          placeholder: { type: 'string', maxLength: 30 },
+          options: { type: 'array', items: { $ref: '#/definitions/option' } },
+        },
+      },
+    },
+    columns: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 8,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['prop', 'label'],
+        properties: {
+          prop: { type: 'string', minLength: 1, maxLength: 40 },
+          label: { type: 'string', minLength: 2, maxLength: 12 },
+        },
+      },
+    },
+  },
+  definitions: FORM_SCHEMA.definitions,
+} as const
+
+/** 详情页结构层 */
+export const DETAIL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['pageType', 'pageTitle', 'groups'],
+  properties: {
+    pageType: { type: 'string', const: 'detail' },
+    pageTitle: { type: 'string', minLength: 2, maxLength: 20 },
+    description: { type: 'string', maxLength: 100 },
+    groups: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 4,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title', 'items'],
+        properties: {
+          title: { type: 'string', minLength: 2, maxLength: 8 },
+          items: {
+            type: 'array',
+            minItems: 2,
+            maxItems: 8,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['label'],
+              properties: { label: { type: 'string', minLength: 2, maxLength: 12 } },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const
+
 const ajv = new Ajv({ allErrors: true })
 export const validateStructure = ajv.compile(FORM_SCHEMA)
+export const validateListStructure = ajv.compile(LIST_SCHEMA)
+export const validateDetailStructure = ajv.compile(DETAIL_SCHEMA)
 
 /** 将 Ajv 错误转成可读中文（只取前几条，避免刷屏） */
 export function formatAjvErrors(errors: readonly ErrorObject[] | null | undefined): string[] {

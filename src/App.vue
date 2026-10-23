@@ -3,48 +3,84 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import PromptCard from './components/PromptCard.vue'
 import FormRenderer from './components/FormRenderer.vue'
+import ListRenderer from './components/ListRenderer.vue'
+import DetailRenderer from './components/DetailRenderer.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
+import TemplateDialog from './components/TemplateDialog.vue'
+import HistoryDrawer from './components/HistoryDrawer.vue'
+import { useHistory } from './composables/useHistory'
 import { useChat } from './composables/useChat'
 
-const view = ref<'form' | 'json'>('form')
+const view = ref<'preview' | 'json'>('preview')
 const settingsOpen = ref(false)
+const templateOpen = ref(false)
+const historyOpen = ref(false)
 const streamEl = ref<HTMLElement | null>(null)
 
+const history = useHistory()
 const chat = useChat({
-  onSchema: () => {
-    view.value = 'form'
+  onSchema: (schema, prompt) => {
+    currentSchema.value = schema
+    view.value = 'preview'
+    const pt = schema.pageType ?? 'form'
+    const title = 'formTitle' in schema ? schema.formTitle : schema.pageTitle
+    history.add(title, pt, prompt, schema)
   },
 })
-const { items, generating, currentSchema, send, stop, reset } = chat
+const { items, generating, currentSchema, send, stop, reset, loadSchema } = chat
+const formSchema = computed(() =>
+  currentSchema.value && pageType.value === 'form'
+    ? (currentSchema.value as unknown as import('./types').FormSchema)
+    : null,
+)
 
-const lastItem = computed(() => items.value[items.value.length - 1])
+const pageType = computed(() => (currentSchema.value?.pageType ?? 'form') as 'form' | 'list' | 'detail')
 const failed = computed(() => lastItem.value?.status === 'fail')
-const streaming = computed(() => generating.value)
+const lastItem = computed(() => items.value[items.value.length - 1])
 
 const statusPill = computed(() => {
   if (generating.value) return { text: '生成中…', cls: 'run' }
   if (failed.value) return { text: '生成失败', cls: 'err' }
-  if (currentSchema.value) return { text: `已生成 ${currentSchema.value.fields.length} 个字段`, cls: 'ok' }
-  return null
+  const s = currentSchema.value
+  if (!s) return null
+  if (pageType.value === 'list') {
+    const n = (s as { columns?: unknown[] }).columns?.length ?? 0
+    return { text: `已生成 ${n} 列表格`, cls: 'ok' }
+  }
+  if (pageType.value === 'detail') {
+    const n = (s as { groups?: unknown[] }).groups?.length ?? 0
+    return { text: `已生成 ${n} 个分组`, cls: 'ok' }
+  }
+  return { text: `已生成 ${(s as { fields?: unknown[] }).fields?.length ?? 0} 个字段`, cls: 'ok' }
 })
+
+const tabLabel = computed(() => (pageType.value === 'form' ? '表单预览' : '页面预览'))
 
 const schemaJson = computed(() =>
   currentSchema.value ? JSON.stringify(currentSchema.value, null, 2) : '',
 )
 
-function soon(name: string) {
-  ElMessage.info(`${name}在规划中，见 GitHub README 的 Roadmap`)
+function onTemplate(t: import('./data/templates').Template) {
+  send(t.prompt)
 }
 
-async function copyJson() {
-  const text = currentSchema.value ? JSON.stringify(currentSchema.value, null, 2) : (lastItem.value?.raw ?? '')
+function loadFromHistory(e: (typeof history.entries.value)[number]) {
+  if (generating.value) return
+  loadSchema(e.schema)
+  view.value = 'preview'
+  historyOpen.value = false
+  ElMessage.success(`已加载「${e.title}」，可继续用自然语言修改`)
+}
+
+function copyJson() {
+  const text = currentSchema.value
+    ? JSON.stringify(currentSchema.value, null, 2)
+    : (lastItem.value?.raw ?? '')
   if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
-    ElMessage.success('已复制到剪贴板')
-  } catch {
-    ElMessage.error('复制失败')
-  }
+  navigator.clipboard
+    .writeText(text)
+    .then(() => ElMessage.success('已复制到剪贴板'))
+    .catch(() => ElMessage.error('复制失败'))
 }
 
 // 流式代码面板自动滚动到底部
@@ -67,8 +103,8 @@ watch(
         </div>
         <nav class="links">
           <a class="active" href="#" @click.prevent>首页</a>
-          <a href="#" @click.prevent="soon('模板库')">模板库</a>
-          <a href="#" @click.prevent="soon('历史记录')">历史记录</a>
+          <a href="#" @click.prevent="templateOpen = true">模板库</a>
+          <a href="#" @click.prevent="historyOpen = true">历史记录</a>
         </nav>
         <button type="button" class="avatar" title="设置（BYOK）" @click="settingsOpen = true">我</button>
       </div>
@@ -77,7 +113,7 @@ watch(
     <section class="hero">
       <span class="hero-badge">AI 驱动 · 智能生成</span>
       <h1>用一句话，生成你的智能表单</h1>
-      <p class="hero-sub">描述你的需求，AI 自动补全字段、校验规则与排版，几分钟搭好一份专业表单。</p>
+      <p class="hero-sub">描述你的需求，AI 自动补全字段、校验规则与排版；支持表单、列表页、详情页三种场景，几分钟搭好一份专业页面。</p>
     </section>
 
     <main class="cards">
@@ -102,11 +138,11 @@ watch(
           <!-- 空态 -->
           <div v-if="!lastItem && !generating" class="empty">
             <div class="art" aria-hidden="true" />
-            <p>生成结果会出现在这里</p>
+            <p>生成结果会出现在这里，支持表单、列表页、详情页</p>
           </div>
 
           <!-- 流式中 -->
-          <template v-if="streaming">
+          <template v-if="generating">
             <pre ref="streamEl" class="stream-code">{{ lastItem?.raw || '// 正在连接模型…' }}</pre>
             <div class="note run"><span class="dot" />{{ lastItem?.note || '正在生成…' }}</div>
           </template>
@@ -126,10 +162,10 @@ watch(
               <button
                 type="button"
                 class="tab"
-                :class="{ active: view === 'form' }"
-                @click="view = 'form'"
+                :class="{ active: view === 'preview' }"
+                @click="view = 'preview'"
               >
-                表单预览
+                {{ tabLabel }}
               </button>
               <button
                 type="button"
@@ -140,13 +176,23 @@ watch(
                 Schema JSON
               </button>
             </div>
-            <FormRenderer v-if="view === 'form'" :schema="currentSchema" />
+            <ListRenderer v-if="pageType === 'list'" :schema="currentSchema as unknown as import('./types').ListSchema" />
+            <DetailRenderer v-else-if="pageType === 'detail'" :schema="currentSchema as unknown as import('./types').DetailSchema" />
+            <FormRenderer v-else-if="view === 'preview'" :schema="formSchema" />
             <pre v-else class="json">{{ schemaJson }}</pre>
           </template>
         </div>
       </section>
     </main>
 
+    <TemplateDialog v-model:open="templateOpen" @select="onTemplate" />
+    <HistoryDrawer
+      v-model:open="historyOpen"
+      :entries="history.entries.value"
+      @load="loadFromHistory"
+      @remove="history.remove"
+      @clear="history.clear"
+    />
     <SettingsDrawer v-model:open="settingsOpen" />
   </div>
 </template>

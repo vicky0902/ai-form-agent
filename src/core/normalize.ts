@@ -2,8 +2,51 @@ import type { FieldOption, FormField } from '../types'
 
 const CAMEL = /^[a-z][a-zA-Z0-9]*$/
 
+/** 按场景分发的确定性修复 */
+export function normalizeAny(input: unknown): unknown {
+  const pageType = (input as { pageType?: string })?.pageType
+  if (pageType === 'list') return normalizeList(input)
+  if (pageType === 'detail') return input
+  return normalizeFormSchema(input)
+}
+
+/** 列表页修复：prop 非法/重复、label 缺省、searchFields 溢出裁剪 */
+function normalizeList(input: unknown): unknown {
+  if (!input || typeof input !== 'object') return input
+  const obj = { ...(input as Record<string, unknown>) }
+  const seen = new Set<string>()
+  let n = 0
+  if (Array.isArray(obj.columns)) {
+    obj.columns = (obj.columns as Record<string, unknown>[])
+      .slice(0, 8)
+      .map((c) => {
+        if (!c || typeof c !== 'object') return { prop: `col${++n}`, label: '列' }
+        const raw = typeof c.prop === 'string' ? c.prop.trim() : ''
+        let prop = CAMEL.test(raw) && !seen.has(raw) ? raw : `col${++n}`
+        while (seen.has(prop)) prop = `col${++n}`
+        seen.add(prop)
+        return { prop, label: typeof c.label === 'string' && c.label ? c.label : prop }
+      })
+  }
+  if (Array.isArray(obj.searchFields)) {
+    const sseen = new Set<string>()
+    let m = 0
+    obj.searchFields = (obj.searchFields as Record<string, unknown>[])
+      .slice(0, 4)
+      .map((s) => {
+        if (!s || typeof s !== 'object') return s
+        const raw = typeof s.field === 'string' ? s.field.trim() : ''
+        let field = CAMEL.test(raw) && !sseen.has(raw) ? raw : `search${++m}`
+        while (sseen.has(field)) field = `search${++m}`
+        sseen.add(field)
+        return { ...s, field }
+      })
+  }
+  return obj
+}
+
 /**
- * 确定性修复层：在 Ajv 结构校验之前，把弱模型常见的可机械修复错误直接修掉，
+ * 表单页确定性修复：在 Ajv 结构校验之前，把弱模型常见的可机械修复错误直接修掉，
  * 避免浪费模型重试。修复项：
  * A. 结构反转（fields 是字符串数组、完整对象被塞进 groups.fields）→ 交换
  * B. field 命名非法（中文/空格/重复）→ 按 type+序号 生成英文名，title 保持中文
