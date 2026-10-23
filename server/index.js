@@ -13,12 +13,12 @@ app.use((req, res, next) => {
   next()
 })
 
-const BASE = process.env.LLM_BASE_URL
-const KEY = process.env.LLM_API_KEY
-const MODEL = process.env.LLM_MODEL || 'glm-4.6'
+const BASE = process.env.LLM_BASE_URL || ''
+const KEY = process.env.LLM_API_KEY || ''
+const MODEL = process.env.LLM_MODEL || 'glm-4-flash'
 if (!BASE || !KEY) {
-  console.error('[server] 缺少 LLM_BASE_URL / LLM_API_KEY 环境变量')
-  process.exit(1)
+  // 不退出：容器退出会触发崩溃循环，且看不到原因。保持在线，由 /debug 与接口报错暴露问题。
+  console.warn('[server] LLM 环境变量未配置，/api/chat 将返回 500')
 }
 
 // 每 IP 每分钟 5 次（演示站止损用，够正常体验）
@@ -59,6 +59,17 @@ app.get('/', (_req, res) => res.json({ ok: true, service: 'ai-form-agent-relay' 
 
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
+// 只暴露布尔值诊断，不泄露密钥内容
+app.get('/debug', (_req, res) =>
+  res.json({
+    hasBase: Boolean(BASE),
+    hasKey: Boolean(KEY),
+    model: MODEL,
+    port: process.env.PORT || null,
+    envKeys: Object.keys(process.env).filter((k) => k.startsWith('LLM')),
+  }),
+)
+
 app.post('/api/verify', async (req, res) => {
   const cfg = upstreamConfig(req)
   try {
@@ -89,6 +100,7 @@ app.post('/api/verify', async (req, res) => {
 })
 
 app.post('/api/chat', async (req, res) => {
+  if (!KEY) return res.status(500).json({ error: '服务端未配置模型 Key，请联系维护者' })
   if (rateLimited(req.ip ?? 'unknown')) {
     return res.status(429).json({ error: '请求太频繁，请一分钟后再试' })
   }
