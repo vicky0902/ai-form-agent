@@ -1,5 +1,8 @@
 import { loadByok } from '../composables/useByok'
 
+/** 线上部署时前端静态域名与中转服务不同源，通过 VITE_API_BASE 指定中转地址 */
+const API_BASE: string = import.meta.env.VITE_API_BASE ?? ''
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
@@ -25,7 +28,7 @@ export async function streamChat(opts: {
   signal: AbortSignal
   onDelta: (delta: string) => void
 }): Promise<string> {
-  const res = await fetch('/api/chat', {
+  const res = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...byokHeaders() },
     body: JSON.stringify({ messages: opts.messages }),
@@ -88,7 +91,7 @@ export async function verifyKey(cfg: {
   if (cfg.baseUrl) headers['x-llm-base-url'] = cfg.baseUrl
   if (cfg.model) headers['x-llm-model'] = cfg.model
   try {
-    const res = await fetch('/api/verify', { method: 'POST', headers })
+    const res = await fetch(`${API_BASE}/api/verify`, { method: 'POST', headers })
     const j = (await res.json()) as { ok: boolean; model?: string; error?: string }
     return j
   } catch {

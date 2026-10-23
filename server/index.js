@@ -4,6 +4,15 @@ import { Readable } from 'node:stream'
 const app = express()
 app.use(express.json({ limit: '64kb' })) // system prompt 含完整规范摘要，远超 2kb
 
+// 静态托管域名与云托管域名不同源，允许任意来源调用（BYOK 头一并放行）
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-llm-base-url, x-llm-api-key, x-llm-model')
+  if (req.method === 'OPTIONS') return res.sendStatus(204)
+  next()
+})
+
 const BASE = process.env.LLM_BASE_URL
 const KEY = process.env.LLM_API_KEY
 const MODEL = process.env.LLM_MODEL || 'glm-4.6'
