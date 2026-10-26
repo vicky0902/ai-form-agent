@@ -105,7 +105,7 @@ export const ALLOWED_FIELD_PROPS: Record<FieldType, string[]> = {
   inputNumber: ['min', 'max', 'precision', 'unit'],
   select: ['options', 'multiple'],
   radio: ['options'],
-  checkbox: ['options'],
+  checkbox: ['options', 'multiple'],
   datePicker: ['dateType'],
   timePicker: [],
   switch: [],

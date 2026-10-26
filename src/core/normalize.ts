@@ -1,6 +1,7 @@
-import type { FieldOption, FormField } from '../types'
+import { ALLOWED_FIELD_PROPS, type FieldOption, type FormField, type FieldType } from '../types'
 
 const CAMEL = /^[a-z][a-zA-Z0-9]*$/
+const GENERIC_FIELD_PROPS = ['type', 'field', 'title', 'required', 'placeholder', 'span', 'options', 'defaultValue']
 
 /** 按场景分发的确定性修复 */
 export function normalizeAny(input: unknown): unknown {
@@ -96,6 +97,11 @@ export function normalizeFormSchema(input: unknown): unknown {
     while (seen.has(name)) name = `${name}X`
     seen.add(name)
     const out = { ...f, field: name } as Record<string, unknown>
+    // 白名单外的属性自动剥离（能自动修的不浪费模型重试）
+    const allowed = [...GENERIC_FIELD_PROPS, ...(ALLOWED_FIELD_PROPS[(out.type as FieldType) ?? 'input'] ?? [])]
+    for (const key of Object.keys(out)) {
+      if (!allowed.includes(key)) delete out[key]
+    }
     // 企业级长标签照实保留，超出 schema 上限的自动截断而非报错
     if (typeof out.title === 'string' && out.title.length > 60) out.title = out.title.slice(0, 60)
     return out

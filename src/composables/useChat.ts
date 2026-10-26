@@ -49,6 +49,7 @@ export function useChat(handlers: { onSchema: (s: AnySchema, prompt: string) => 
   /** 生成 → 解析 → 校验 → 失败带错误回灌自动修复，最多 MAX_RETRIES 次 */
   async function generate(baseMessages: ChatMessage[], item: ChatItem): Promise<AnySchema> {
     let convo = baseMessages
+    let lastErrors: string[] = []
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       ac = new AbortController()
       let raw = ''
@@ -91,6 +92,7 @@ export function useChat(handlers: { onSchema: (s: AnySchema, prompt: string) => 
       }
       const result = validateAny(parsed)
       if (!result.ok) {
+        lastErrors = result.errors
         item.note = `校验发现 ${result.errors.length} 个问题，自动修复中（第 ${attempt + 1} 次）…`
         convo = withRetryTurn(convo, raw, result.errors)
         continue
@@ -102,7 +104,7 @@ export function useChat(handlers: { onSchema: (s: AnySchema, prompt: string) => 
       return parsed as AnySchema
     }
     item.status = 'fail'
-    item.note = `连续 ${MAX_RETRIES + 1} 次输出未通过校验，已停止`
+    item.note = `连续 ${MAX_RETRIES + 1} 次输出未通过校验，已停止。常见原因：${(lastErrors[0] || '输出格式偏差').slice(0, 80)}`
     throw new Error('生成失败')
   }
 
