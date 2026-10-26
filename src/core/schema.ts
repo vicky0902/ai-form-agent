@@ -7,19 +7,19 @@ export const FORM_SCHEMA = {
   required: ['formTitle', 'fields'],
   properties: {
     pageType: { type: 'string', const: 'form' },
-    formTitle: { type: 'string', minLength: 1, maxLength: 30 },
+    formTitle: { type: 'string', minLength: 1, maxLength: 40 },
     description: { type: 'string', maxLength: 100 },
     labelWidth: { type: 'integer', minimum: 80, maximum: 200 },
     columns: { type: 'integer', enum: [1, 2] },
     groups: {
       type: 'array',
-      maxItems: 5,
+      maxItems: 6,
       items: {
         type: 'object',
         additionalProperties: false,
         required: ['title', 'fields'],
         properties: {
-          title: { type: 'string', minLength: 2, maxLength: 8 },
+          title: { type: 'string', minLength: 2, maxLength: 20 },
           fields: { type: 'array', items: { type: 'string' }, minItems: 1 },
         },
       },
@@ -27,7 +27,7 @@ export const FORM_SCHEMA = {
     fields: {
       type: 'array',
       minItems: 1,
-      maxItems: 20,
+      maxItems: 30,
       items: { $ref: '#/definitions/field' },
     },
   },
@@ -64,7 +64,7 @@ export const FORM_SCHEMA = {
           ],
         },
         field: { type: 'string', minLength: 1, maxLength: 40 },
-        title: { type: 'string', minLength: 2, maxLength: 20 },
+        title: { type: 'string', minLength: 2, maxLength: 60 },
         required: { type: 'boolean' },
         placeholder: { type: 'string', maxLength: 50 },
         span: { type: 'integer', enum: [1, 2] },

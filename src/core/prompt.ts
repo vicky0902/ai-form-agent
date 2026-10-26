@@ -7,19 +7,19 @@ const SPEC_DIGEST = `表单/页面配置规范 v1（必须严格遵守）：
 - list：列表/管理页
 - detail：展示/详情页
 
-【form 结构】{ pageType:'form', formTitle(1~30字,必填), description(≤100字), labelWidth(80~200), columns(1|2), groups, fields(1~20个,必填) }
+【form 结构】{ pageType:'form', formTitle(1~40字,必填), description(≤100字), labelWidth(80~200), columns(1|2), groups, fields(1~30个,必填) }
 groups: [{ title(2~8字), fields:[字段名字符串…] }]；fields: 字段对象数组
 ⚠️ fields 必须是【字段对象数组】；groups.fields 必须是【字符串数组】（只放字段名，不是对象）。
 
-字段对象通用属性（form）：type(必填), field(必填,小驼峰英文禁止中文), title(必填,2~20字), required, placeholder, span(1|2)
+字段对象通用属性（form）：type(必填), field(必填,小驼峰英文禁止中文), title(必填,2~40字，长标签照实写), required, placeholder, span(1|2)
 type 白名单（仅此 11 种）：input | textarea | inputNumber | select | radio | checkbox | datePicker | timePicker | switch | cascader | upload
 专有属性：input: maxLength(1~500)；textarea: rows(2~6), maxLength(1~500)；inputNumber: min,max,precision(0~2),unit；select: options(必填),multiple；radio/checkbox: options(必填)；datePicker: dateType("date"|"daterange"，日期区间必须用 daterange 不拆字段)；cascader: options(必填,children 嵌套)；upload: limit(1~5),accept；timePicker/switch: 无
 options: { label: 中文, value: 小写英文 }，cascader 子级放 children
 排版（form）：短字段 span:1；textarea/upload/cascader/daterange 用 span:2；字段>8个必须用 groups 分组
 
-【list 结构】{ pageType:'list', pageTitle(2~20字), searchFields(0~4个,仅 input/select/datePicker,field 英文驼峰,select 必须带 options), columns(3~8个:{"prop":"英文驼峰","label":"中文"}) }
+【list 结构】{ pageType:'list', pageTitle(2~30字), searchFields(0~4个,仅 input/select/datePicker,field 英文驼峰,select 必须带 options), columns(3~8个:{"prop":"英文驼峰","label":"中文"}) }
 
-【detail 结构】{ pageType:'detail', pageTitle(2~20字), groups(1~4个:[{title(2~8字), items(2~8个:{"label":"中文字段名"})}]) }
+【detail 结构】{ pageType:'detail', pageTitle(2~30字), groups(1~4个:[{title(2~8字), items(2~8个:{"label":"中文字段名"})}]) }
 
 禁止：白名单之外的任何属性（无 CSS/style/class）、中文 field、select 类缺 options。
 
@@ -81,3 +81,8 @@ ${SPEC_DIGEST}
 2. 新增字段插入到用户指定的位置；未指定时放到语义最相关的分组末尾
 3. ${OUTPUT_RULES}`
 }
+
+export const VISION_INVENTORY_PROMPT = `请逐字提取这张图片中表单包含的每一个控件，输出为清单，每行一条，格式：
+标签 | 控件类型(输入框/下拉/单选/多选/日期/多行文本/上传/子表格) | 下拉或单选的全部选项文本(逐字抄写；若图中看不到选项内容写"选项不可见") | 是否必填(图中有红星为"必填"，否则"选填")
+同时列出：页面标题、面包屑路径、分组/区块标题、底部按钮。
+要求：不要遗漏任何一行控件；不要编造图中不存在的控件或选项；分组归属照图片标注。`

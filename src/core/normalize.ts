@@ -95,8 +95,18 @@ export function normalizeFormSchema(input: unknown): unknown {
     }
     while (seen.has(name)) name = `${name}X`
     seen.add(name)
-    return { ...f, field: name }
+    const out = { ...f, field: name } as Record<string, unknown>
+    // 企业级长标签照实保留，超出 schema 上限的自动截断而非报错
+    if (typeof out.title === 'string' && out.title.length > 60) out.title = out.title.slice(0, 60)
+    return out
   })
+  // 空引用分组剔除，未分组字段保持原序（渲染器会放在分组前）
+  if (Array.isArray(obj.groups)) {
+    obj.groups = (obj.groups as Record<string, unknown>[]).map((g) => ({
+      ...g,
+      title: typeof g.title === 'string' && g.title.length > 20 ? g.title.slice(0, 20) : g.title,
+    })).filter((g) => Array.isArray(g.fields as unknown[]) && (g.fields as unknown[]).length > 0)
+  }
 
   // C. groups 引用修复：先按 field 名收录，再按 title 兜底
   if (Array.isArray(obj.groups)) {

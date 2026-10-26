@@ -3,7 +3,7 @@ import type { AnySchema } from '../types'
 import { streamChat, type ChatMessage } from '../api/llm'
 import { extractJson } from '../core/extract'
 import { normalizeAny } from '../core/normalize'
-import { buildSystemPrompt } from '../core/prompt'
+import { buildSystemPrompt, VISION_INVENTORY_PROMPT } from '../core/prompt'
 import { validateAny } from '../core/validate'
 
 export interface ChatItem {
@@ -130,18 +130,37 @@ export function useChat(handlers: { onSchema: (s: AnySchema, prompt: string) => 
     const item = pushAI()
     generating.value = true
     try {
-      // 带图片 = 按图片生成一份新表单（不走修改模式）
+      // 带图片 = 两段式：视觉模型逐字提取控件清单 → 文本模型按清单生成配置
       const fresh = !!image
+      let inventory = ''
+      if (image) {
+        item.note = '正在识别图片中的字段…'
+        ac = new AbortController()
+        inventory = await streamChat({
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: image } },
+              { type: 'text', text: VISION_INVENTORY_PROMPT },
+            ],
+          }],
+          signal: ac.signal,
+          onDelta: (d) => {
+            item.raw = (item.raw ?? '') + d
+          },
+        })
+        item.note = '识别完成，正在生成配置…'
+      }
       const messages: ChatMessage[] = [
         { role: 'system', content: buildSystemPrompt(fresh ? null : currentSchema.value) },
         ...history.slice(-HISTORY_MESSAGES),
         {
           role: 'user',
           content: image
-            ? ([
-                { type: 'text', text: clean },
-                { type: 'image_url', image_url: { url: image } },
-              ] as import('../api/llm').MessageContent)
+            ? `以下是从一张表单截图逐字提取的控件清单。请严格按清单生成配置：字段标签与清单逐字一致、不得遗漏清单中的控件、不得新增清单外的字段；清单中"选项不可见"的下拉，选项生成两条 {"label":"待补充1","value":"tbd1"}；子表格/附件按规范映射。用户补充要求：${clean}
+
+【控件清单】
+${inventory}`
             : clean,
         },
       ]
