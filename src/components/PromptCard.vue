@@ -2,12 +2,13 @@
 import { ref } from 'vue'
 
 const props = defineProps<{ generating: boolean; hasSchema: boolean }>()
-const emit = defineEmits<{ send: [text: string, image?: string]; stop: []; reset: [] }>()
+const emit = defineEmits<{ send: [text: string, images?: string[]]; stop: []; reset: [] }>()
 
 const input = ref('')
-const attachedImage = ref<string | null>(null)
+const attachedBands = ref<string[]>([])
+const previewThumb = ref<string | null>(null)
 
-/** 图片压缩到最长边 1280px，转 base64 JPEG（控制请求体积） */
+/** 压缩到宽 1280 后按 1000px 分段（80px 重叠），每段单独识别以提升小字精度 */
 function onFile(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   ;(e.target as HTMLInputElement).value = ''
@@ -22,10 +23,25 @@ function onFile(e: Event) {
     img.onload = () => {
       const scale = Math.min(1, 1280 / Math.max(img.width, img.height))
       const canvas = document.createElement('canvas')
-      canvas.width = Math.round(img.width * scale)
-      canvas.height = Math.round(img.height * scale)
+      canvas.width = Math.max(1, Math.round(img.width * scale))
+      canvas.height = Math.max(1, Math.round(img.height * scale))
       canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
-      attachedImage.value = canvas.toDataURL('image/jpeg', 0.85)
+      const bands: string[] = []
+      const bandH = 1000
+      const overlap = 80
+      let y = 0
+      while (y < canvas.height) {
+        const h = Math.min(bandH, canvas.height - y)
+        const c2 = document.createElement('canvas')
+        c2.width = canvas.width
+        c2.height = h
+        c2.getContext('2d')!.drawImage(canvas, 0, -y)
+        bands.push(c2.toDataURL('image/jpeg', 0.85))
+        if (y + h >= canvas.height) break
+        y += h - overlap
+      }
+      attachedBands.value = bands
+      previewThumb.value = bands[0]
     }
     img.src = reader.result as string
   }
@@ -33,7 +49,8 @@ function onFile(e: Event) {
 }
 
 function removeImage() {
-  attachedImage.value = null
+  attachedBands.value = []
+  previewThumb.value = null
 }
 
 const presets = [
@@ -45,11 +62,12 @@ const presets = [
 
 function doSend(text?: string) {
   const value = (text ?? input.value).trim()
-  const img = attachedImage.value ?? undefined
-  if (props.generating || (!value && !img)) return
-  emit('send', value || '请根据图片中的表单样式生成配置', img)
+  const bands = attachedBands.value.length ? attachedBands.value : undefined
+  if (props.generating || (!value && !bands)) return
+  emit('send', value || '请根据图片中的表单样式生成配置', bands)
   input.value = ''
-  attachedImage.value = null
+  attachedBands.value = []
+  previewThumb.value = null
 }
 </script>
 
@@ -65,10 +83,12 @@ function doSend(text?: string) {
       @keydown.enter.exact.prevent="doSend()"
     />
 
-    <div v-if="attachedImage" class="attach-preview">
-      <img :src="attachedImage" alt="待识别图片" />
+    <div v-if="previewThumb" class="attach-preview">
+      <img :src="previewThumb" alt="待识别图片" />
       <button type="button" class="remove" title="移除图片" @click="removeImage">✕</button>
-      <span class="attach-hint">图片模式：将按图片生成一份新表单</span>
+      <span class="attach-hint">
+        图片模式：将按图分段识别并生成一份新表单{{ attachedBands.length > 1 ? `（共 ${attachedBands.length} 段）` : '' }}
+      </span>
     </div>
 
     <div class="attach-row">
@@ -95,14 +115,14 @@ function doSend(text?: string) {
       v-if="!generating"
       type="button"
       class="cta"
-      :disabled="!input.trim() && !attachedImage"
+      :disabled="!input.trim() && !attachedBands.length"
       @click="doSend()"
     >
-      {{ attachedImage ? '按图片生成表单' : 'AI 生成表单' }} <span class="arrow">→</span>
+      {{ attachedBands.length ? '按图片生成表单' : 'AI 生成表单' }} <span class="arrow">→</span>
     </button>
     <button v-else type="button" class="cta stop" @click="emit('stop')">停止生成</button>
 
-    <p class="followup" v-if="hasSchema && !generating && !attachedImage">
+    <p class="followup" v-if="hasSchema && !generating && !attachedBands.length">
       将基于当前已生成的表单继续修改 ·
       <a class="reset" @click.prevent="emit('reset')" href="#">重新开始</a>
     </p>

@@ -120,7 +120,7 @@ watch(
       <PromptCard
         :generating="generating"
         :has-schema="!!currentSchema"
-        @send="(t: string, img?: string) => send(t, img)"
+        @send="(t: string, imgs?: string[]) => send(t, imgs)"
         @stop="stop"
         @reset="reset"
       />

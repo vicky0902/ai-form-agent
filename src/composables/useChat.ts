@@ -122,33 +122,46 @@ export function useChat(handlers: { onSchema: (s: AnySchema, prompt: string) => 
   }
 
   let lastPrompt = ''
-  async function send(text: string, image?: string) {
+  async function send(text: string, images?: string[]) {
     const clean = text.trim().slice(0, 500)
     if (generating.value || !clean) return
     lastPrompt = clean
-    pushUser(clean, !!image)
+    pushUser(clean, !!images)
     const item = pushAI()
     generating.value = true
     try {
       // 带图片 = 两段式：视觉模型逐字提取控件清单 → 文本模型按清单生成配置
-      const fresh = !!image
+      const fresh = !!images
       let inventory = ''
-      if (image) {
-        item.note = '正在识别图片中的字段…'
-        ac = new AbortController()
-        inventory = await streamChat({
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image_url', image_url: { url: image } },
-              { type: 'text', text: VISION_INVENTORY_PROMPT },
-            ],
-          }],
-          signal: ac.signal,
-          onDelta: (d) => {
-            item.raw = (item.raw ?? '') + d
-          },
-        })
+      if (images?.length) {
+        const inventories: string[] = []
+        for (let bi = 0; bi < images.length; bi++) {
+          item.note =
+            images.length > 1
+              ? `正在识别图片（第 ${bi + 1}/${images.length} 段）…`
+              : '正在识别图片中的字段…'
+          item.raw = ''
+          ac = new AbortController()
+          const bandTip =
+            images.length > 1
+              ? `\n本图是长截图的第 ${bi + 1}/${images.length} 段，只提取本段内完整可见的控件；边缘被截断一半的控件也要提取并在末尾标注"(截断)"。`
+              : ''
+          const inv = await streamChat({
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'image_url', image_url: { url: images[bi] } },
+                { type: 'text', text: VISION_INVENTORY_PROMPT + bandTip },
+              ],
+            }],
+            signal: ac.signal,
+            onDelta: (d) => {
+              item.raw = (item.raw ?? '') + d
+            },
+          })
+          inventories.push(inv)
+        }
+        inventory = inventories.join('\n\n')
         item.note = '识别完成，正在生成配置…'
       }
       const messages: ChatMessage[] = [
@@ -156,7 +169,7 @@ export function useChat(handlers: { onSchema: (s: AnySchema, prompt: string) => 
         ...history.slice(-HISTORY_MESSAGES),
         {
           role: 'user',
-          content: image
+          content: images
             ? `以下是从一张表单截图逐字提取的控件清单。请严格按清单生成配置：字段标签与清单逐字一致、不得遗漏清单中的控件、不得新增清单外的字段；清单中"选项不可见"的下拉，选项生成两条 {"label":"待补充1","value":"tbd1"}；子表格/附件按规范映射。用户补充要求：${clean}
 
 【控件清单】
